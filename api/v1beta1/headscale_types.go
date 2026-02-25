@@ -113,7 +113,7 @@ type DERPConfig struct {
 	// URLs is the list of external DERP map URLs
 	// +kubebuilder:default={"https://controlplane.tailscale.com/derpmap/default"}
 	// +optional
-	URLs []string `json:"urls,omitempty"`
+	URLs []string `json:"urls,omitzero"`
 
 	// Paths is the list of local DERP map file paths
 	// +optional
