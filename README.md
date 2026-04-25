@@ -11,6 +11,7 @@ The Headscale Operator simplifies the deployment and management of Headscale ins
 - **Declarative Configuration**: Define your entire Headscale setup as a Kubernetes Custom Resource
 - **Automatic Deployment**: Manages StatefulSets, Services, ConfigMaps, and PersistentVolumes
 - **API Key Management**: Automatic API key creation and rotation with configurable expiration
+- **ACL Policy Management**: Declarative auto-approval of subnet routes and exit nodes via the `HeadscaleAutoApprover` CRD
 - **Full Config Support**: Supports all Headscale configuration options including:
   - Database configuration (SQLite/PostgreSQL)
   - DERP server configuration
@@ -43,6 +44,13 @@ The Headscale Operator simplifies the deployment and management of Headscale ins
       - [Retrieving PreAuth Keys](#retrieving-preauth-keys)
       - [Using PreAuth Keys](#using-preauth-keys)
       - [PreAuth Key Examples](#preauth-key-examples)
+    - [Managing Auto-Approve Routes](#managing-auto-approve-routes)
+      - [Prerequisites](#prerequisites-1)
+      - [Creating an Auto-Approver](#creating-an-auto-approver)
+      - [Auto-Approver Properties](#auto-approver-properties)
+      - [Viewing Auto-Approvers](#viewing-auto-approvers)
+      - [Combining With PreAuth Keys](#combining-with-preauth-keys)
+      - [Auto-Approver Examples](#auto-approver-examples)
     - [API Key Management](#api-key-management)
     - [Uninstallation](#uninstallation)
   - [Development](#development)
@@ -319,6 +327,170 @@ spec:
   tags:
     - "tag:test"
 ```
+
+### Managing Auto-Approve Routes
+
+The operator provides the `HeadscaleAutoApprover` custom resource to declaratively manage [auto-approved subnet routes and exit nodes](https://headscale.net/stable/ref/routes/#automatically-approve-routes-of-a-subnet-router) in your Headscale instance. Each `HeadscaleAutoApprover` contributes entries to the parent Headscale's policy document; the operator merges all auto-approvers targeting a Headscale and pushes the result via the gRPC `SetPolicy` API.
+
+#### Prerequisites
+
+Auto-approval lives in the Headscale policy document, which the operator can only write when Headscale is configured with `policy.mode: database`. The parent `Headscale` resource must also declare the tag owners that the auto-approver references. Both fields are set on the `Headscale` spec:
+
+```yaml
+apiVersion: headscale.infrado.cloud/v1beta1
+kind: Headscale
+metadata:
+  name: headscale-sample
+  namespace: headscale
+spec:
+  # ...
+  config:
+    policy:
+      mode: database          # required for SetPolicy
+  acl_policy:
+    tag_owners:
+      "tag:router": ["admin@example.com"]
+      "tag:exit":   ["admin@example.com"]
+    inline: |                 # optional base policy for acls/groups/hosts/ssh
+      {
+        "acls": [{"action": "accept", "src": ["*"], "dst": ["*:*"]}]
+      }
+```
+
+`acl_policy.inline` accepts JSON or HuJSON (comments and trailing commas are fine). The operator parses it, merges in `tag_owners` and any `HeadscaleAutoApprover` entries, then pushes the result via `SetPolicy`. The CR is the source of truth — `headscale policy get` shows the rendered output as strict JSON.
+
+#### Creating an Auto-Approver
+
+```yaml
+apiVersion: headscale.infrado.cloud/v1beta1
+kind: HeadscaleAutoApprover
+metadata:
+  name: k8s-network
+  namespace: headscale
+spec:
+  # Reference to the Headscale instance (same namespace)
+  headscaleRef: headscale-sample
+
+  # Routes a node carrying any of the listed tags will have
+  # auto-approved when announced via --advertise-routes.
+  routes:
+    - cidr: 10.10.0.0/16
+      tags: ["tag:router"]
+
+  # Tags whose nodes will be auto-approved as exit nodes.
+  exitNodeTags: ["tag:exit"]
+```
+
+Apply:
+
+```sh
+kubectl apply -f headscaleautoapprover.yaml
+```
+
+#### Auto-Approver Properties
+
+- **headscaleRef**: Name of the Headscale instance in the same namespace. Required.
+- **routes**: List of `{cidr, tags}` pairs. A node registered with one of the listed tags has the matching CIDR auto-approved when it advertises that route. Each tag must be declared in the parent's `acl_policy.tag_owners`.
+- **exitNodeTags**: List of tags whose nodes are auto-approved as exit nodes when they advertise themselves as such.
+
+At least one of `routes` or `exitNodeTags` must be specified. Multiple `HeadscaleAutoApprover` resources may target the same Headscale; the operator merges them deterministically into a single `autoApprovers` block.
+
+#### Viewing Auto-Approvers
+
+```sh
+# List all auto-approvers in a namespace
+kubectl get headscaleautoapprover -n headscale
+
+# Inspect the Ready condition (status=True / reason=PolicyApplied means push succeeded)
+kubectl get headscaleautoapprover k8s-network -n headscale \
+  -o jsonpath='{.status.conditions[?(@.type=="Ready")]}'
+
+# Inspect the live merged policy stored in Headscale
+kubectl exec -n headscale -c headscale <headscale-pod> -- headscale policy get
+```
+
+The `Ready` condition reasons are:
+
+- `PolicyApplied` — the merged policy was successfully pushed via gRPC.
+- `HeadscaleNotFound` — the referenced Headscale doesn't exist in the same namespace.
+- `PolicyModeUnsupported` — the parent Headscale isn't configured with `policy.mode: database`.
+- `PolicyPushFailed` — the gRPC `SetPolicy` call returned an error (see `.status.conditions[].message` for details).
+
+#### Combining With PreAuth Keys
+
+An auto-approver only takes effect when a node is actually carrying the matching tag. The most common pattern is to issue a tagged preauth key for the subnet router:
+
+```yaml
+apiVersion: headscale.infrado.cloud/v1beta1
+kind: HeadscalePreAuthKey
+metadata:
+  name: subnet-router-key
+  namespace: headscale
+spec:
+  headscaleRef: headscale-sample
+  headscaleUserRef: alice
+  reusable: true
+  tags: ["tag:router"]
+```
+
+A node registered with this key, advertising e.g. `--advertise-routes=10.10.0.0/16`, will have its routes auto-approved.
+
+#### Auto-Approver Examples
+
+**Auto-approve a Kubernetes pod CIDR via a subnet router:**
+
+```yaml
+apiVersion: headscale.infrado.cloud/v1beta1
+kind: HeadscaleAutoApprover
+metadata:
+  name: pod-network
+spec:
+  headscaleRef: headscale-sample
+  routes:
+    - cidr: 10.244.0.0/16
+      tags: ["tag:router"]
+```
+
+**Auto-approve a tagged exit node:**
+
+```yaml
+apiVersion: headscale.infrado.cloud/v1beta1
+kind: HeadscaleAutoApprover
+metadata:
+  name: home-exit-node
+spec:
+  headscaleRef: headscale-sample
+  exitNodeTags: ["tag:exit"]
+```
+
+**Per-team segmentation — each team owns its own CIDR:**
+
+```yaml
+---
+apiVersion: headscale.infrado.cloud/v1beta1
+kind: HeadscaleAutoApprover
+metadata:
+  name: team-prod-routes
+  namespace: headscale
+spec:
+  headscaleRef: headscale-sample
+  routes:
+    - cidr: 10.10.0.0/16
+      tags: ["tag:router"]
+---
+apiVersion: headscale.infrado.cloud/v1beta1
+kind: HeadscaleAutoApprover
+metadata:
+  name: team-staging-routes
+  namespace: headscale
+spec:
+  headscaleRef: headscale-sample
+  routes:
+    - cidr: 10.20.0.0/16
+      tags: ["tag:router"]
+```
+
+The operator merges both into a single `autoApprovers.routes` map and pushes one consolidated policy.
 
 ### API Key Management
 
