@@ -106,7 +106,7 @@ jobs:
       - name: Approve pull request
         if: steps.guard.outputs.skip == 'false'
         env:
-          GH_TOKEN: ${{ secrets.AUTO_APPROVE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr review "chore/bump-helm-${{ steps.version.outputs.tag }}" --approve
 
