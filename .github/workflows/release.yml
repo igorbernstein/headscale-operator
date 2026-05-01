@@ -89,14 +89,14 @@ jobs:
       - name: Create pull request
         if: steps.guard.outputs.skip == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
           BRANCH="chore/bump-helm-${{ steps.version.outputs.tag }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add helm/Chart.yaml
-          git commit -m "chore: bump Helm chart to ${{ steps.version.outputs.tag }}"
+          git commit -s -m "chore: bump Helm chart to ${{ steps.version.outputs.tag }}"
           git push origin "$BRANCH"
           gh pr create \
             --title "chore: bump Helm chart to ${{ steps.version.outputs.tag }}" \
