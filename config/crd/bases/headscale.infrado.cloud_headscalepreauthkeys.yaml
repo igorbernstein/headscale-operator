@@ -75,6 +75,13 @@ spec:
                   never expires.
                 pattern: ^$|^([0-9]+(\.[0-9]+)?(s|m|h))+$
                 type: string
+              headscaleNamespace:
+                description: |-
+                  HeadscaleNamespace is the namespace of the referenced Headscale instance.
+                  If not set, defaults to the namespace of this HeadscalePreAuthKey resource,
+                  which allows a HeadscalePreAuthKey in one namespace to reference a Headscale
+                  instance in another (e.g. a shared networking namespace).
+                type: string
               headscaleRef:
                 description: HeadscaleRef is the name of the Headscale instance to
                   create the preauth key in

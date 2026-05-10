@@ -334,6 +334,136 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 			Expect(k8sClient.Delete(ctx, preAuthKey)).To(Succeed())
 		})
 
+		It("should find Headscale CR in headscaleNamespace when set", func() {
+			const remoteNamespace = "headscale-remote-ns"
+
+			By("Creating the remote namespace")
+			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: remoteNamespace}}
+			err := k8sClient.Get(ctx, types.NamespacedName{Name: remoteNamespace}, &corev1.Namespace{})
+			if errors.IsNotFound(err) {
+				Expect(k8sClient.Create(ctx, ns)).To(Succeed())
+			}
+
+			By("Creating a Headscale CR in the remote namespace")
+			remoteHeadscale := &headscalev1beta1.Headscale{
+				ObjectMeta: metav1.ObjectMeta{Name: headscaleName, Namespace: remoteNamespace},
+				Spec: headscalev1beta1.HeadscaleSpec{
+					Version:  "v0.28.0",
+					Replicas: 1,
+					Config: headscalev1beta1.HeadscaleConfig{
+						ServerURL:         "https://headscale.example.com",
+						GRPCListenAddr:    "0.0.0.0:50443",
+						MetricsListenAddr: "0.0.0.0:9090",
+					},
+					PersistentVolumeClaim: headscalev1beta1.PersistentVolumeClaimConfig{
+						Size: resource.NewQuantity(128*1024*1024, resource.BinarySI),
+					},
+					APIKey: headscalev1beta1.APIKeyConfig{SecretName: "remote-api-key-secret"},
+				},
+			}
+			remoteHeadscaleNN := types.NamespacedName{Name: headscaleName, Namespace: remoteNamespace}
+			err = k8sClient.Get(ctx, remoteHeadscaleNN, &headscalev1beta1.Headscale{})
+			if errors.IsNotFound(err) {
+				Expect(k8sClient.Create(ctx, remoteHeadscale)).To(Succeed())
+			}
+
+			By("Creating the API key secret in the remote namespace")
+			remoteSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "remote-api-key-secret", Namespace: remoteNamespace},
+				Data:       map[string][]byte{"api-key": []byte("remote-api-key-value")},
+			}
+			remoteSecretNN := types.NamespacedName{Name: "remote-api-key-secret", Namespace: remoteNamespace}
+			err = k8sClient.Get(ctx, remoteSecretNN, &corev1.Secret{})
+			if errors.IsNotFound(err) {
+				Expect(k8sClient.Create(ctx, remoteSecret)).To(Succeed())
+			}
+
+			By("Creating a HeadscalePreAuthKey in the local namespace with headscaleNamespace set")
+			crossNsKey := &headscalev1beta1.HeadscalePreAuthKey{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      resourceName + "-cross-ns",
+					Namespace: namespace,
+				},
+				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+					HeadscaleRef:       headscaleName,
+					HeadscaleNamespace: remoteNamespace,
+					Tags:               []string{"tag:ci"},
+					Expiration:         "1h",
+				},
+			}
+			Expect(k8sClient.Create(ctx, crossNsKey)).To(Succeed())
+
+			crossNsNN := types.NamespacedName{Name: resourceName + "-cross-ns", Namespace: namespace}
+
+			By("Reconciling the resource")
+			controllerReconciler := &HeadscalePreAuthKeyReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: crossNsNN})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying the finalizer was added (Headscale CR was found across namespaces)")
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, crossNsNN, crossNsKey)
+				if err != nil {
+					return false
+				}
+				return slices.Contains(crossNsKey.Finalizers, headscalePreAuthKeyFinalizer)
+			}, timeout, interval).Should(BeTrue())
+
+			By("Cleaning up")
+			Expect(k8sClient.Delete(ctx, crossNsKey)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, remoteHeadscale)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, remoteSecret)).To(Succeed())
+		})
+
+		It("should set HeadscaleNotFound when Headscale CR is absent in headscaleNamespace", func() {
+			By("Creating a HeadscalePreAuthKey pointing to a non-existent namespace")
+			crossNsMissingKey := &headscalev1beta1.HeadscalePreAuthKey{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      resourceName + "-cross-ns-missing",
+					Namespace: namespace,
+				},
+				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+					HeadscaleRef:       "non-existent-headscale",
+					HeadscaleNamespace: "does-not-exist",
+					Tags:               []string{"tag:ci"},
+					Expiration:         "1h",
+				},
+			}
+			Expect(k8sClient.Create(ctx, crossNsMissingKey)).To(Succeed())
+
+			crossNsMissingNN := types.NamespacedName{Name: resourceName + "-cross-ns-missing", Namespace: namespace}
+
+			By("Reconciling the resource")
+			controllerReconciler := &HeadscalePreAuthKeyReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: crossNsMissingNN})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying HeadscaleNotFound status is set")
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, crossNsMissingNN, crossNsMissingKey)
+				if err != nil {
+					return false
+				}
+				for _, condition := range crossNsMissingKey.Status.Conditions {
+					if condition.Type == readyConditionType &&
+						condition.Status == metav1.ConditionFalse &&
+						condition.Reason == headscaleNotFoundReason {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+
+			By("Cleaning up")
+			Expect(k8sClient.Delete(ctx, crossNsMissingKey)).To(Succeed())
+		})
+
 		It("should handle missing HeadscaleUser reference", func() {
 			By("Creating a HeadscalePreAuthKey with non-existent HeadscaleUser reference")
 			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{

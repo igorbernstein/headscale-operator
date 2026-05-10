@@ -70,19 +70,23 @@ func (r *HeadscalePreAuthKeyReconciler) Reconcile(ctx context.Context, req ctrl.
 	}
 
 	// Get the referenced Headscale instance
+	headscaleNS := preAuthKey.Namespace
+	if preAuthKey.Spec.HeadscaleNamespace != "" {
+		headscaleNS = preAuthKey.Spec.HeadscaleNamespace
+	}
 	headscale := &headscalev1beta1.Headscale{}
 	err = r.Get(ctx, types.NamespacedName{
 		Name:      preAuthKey.Spec.HeadscaleRef,
-		Namespace: preAuthKey.Namespace,
+		Namespace: headscaleNS,
 	}, headscale)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Error(err, "Referenced Headscale instance not found", "HeadscaleRef", preAuthKey.Spec.HeadscaleRef)
+			log.Error(err, "Referenced Headscale instance not found", "HeadscaleRef", preAuthKey.Spec.HeadscaleRef, "HeadscaleNamespace", headscaleNS)
 			if err := r.updateStatusCondition(ctx, preAuthKey, metav1.Condition{
 				Type:    "Ready",
 				Status:  metav1.ConditionFalse,
 				Reason:  "HeadscaleNotFound",
-				Message: fmt.Sprintf("Referenced Headscale instance %s not found", preAuthKey.Spec.HeadscaleRef),
+				Message: fmt.Sprintf("Referenced Headscale instance %s not found in namespace %s", preAuthKey.Spec.HeadscaleRef, headscaleNS),
 			}); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -254,15 +258,19 @@ func (r *HeadscalePreAuthKeyReconciler) handleDeletion(
 
 	if controllerutil.ContainsFinalizer(preAuthKey, headscalePreAuthKeyFinalizer) {
 		// Get the referenced Headscale instance
+		headscaleNS := preAuthKey.Namespace
+		if preAuthKey.Spec.HeadscaleNamespace != "" {
+			headscaleNS = preAuthKey.Spec.HeadscaleNamespace
+		}
 		headscale := &headscalev1beta1.Headscale{}
 		err := r.Get(ctx, types.NamespacedName{
 			Name:      preAuthKey.Spec.HeadscaleRef,
-			Namespace: preAuthKey.Namespace,
+			Namespace: headscaleNS,
 		}, headscale)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				log.Info("Referenced Headscale instance not found during deletion, removing finalizer",
-					"HeadscaleRef", preAuthKey.Spec.HeadscaleRef)
+					"HeadscaleRef", preAuthKey.Spec.HeadscaleRef, "HeadscaleNamespace", headscaleNS)
 				controllerutil.RemoveFinalizer(preAuthKey, headscalePreAuthKeyFinalizer)
 				if err := r.Update(ctx, preAuthKey); err != nil {
 					return ctrl.Result{}, err

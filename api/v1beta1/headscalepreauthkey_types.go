@@ -11,6 +11,13 @@ type HeadscalePreAuthKeySpec struct {
 	// +required
 	HeadscaleRef string `json:"headscaleRef"`
 
+	// HeadscaleNamespace is the namespace of the referenced Headscale instance.
+	// If not set, defaults to the namespace of this HeadscalePreAuthKey resource,
+	// which allows a HeadscalePreAuthKey in one namespace to reference a Headscale
+	// instance in another (e.g. a shared networking namespace).
+	// +optional
+	HeadscaleNamespace string `json:"headscaleNamespace,omitempty"`
+
 	// HeadscaleUserRef is the name of the HeadscaleUser resource to create the preauth key for
 	// HeadscaleUserRef and UserID are mutually exclusive. If neither is set, the key is
 	// created without a user (a "tags-only" key) and Tags must be non-empty.

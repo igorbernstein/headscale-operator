@@ -8,7 +8,13 @@ metadata:
 spec:
   # Reference to the Headscale instance
   headscaleRef: headscale-sample
-  
+
+  # Optional: namespace of the Headscale instance. Defaults to the namespace of
+  # this resource. Set this when the Headscale CR lives in a different namespace
+  # (e.g. a shared networking namespace) so the secret is created co-located
+  # with the consumer.
+  # headscaleNamespace: networking
+
   # Reference to the HeadscaleUser (use either headscaleUserRef or userId).
   # Both fields are optional and mutually exclusive: omit both to create a
   # tags-only key (in which case `tags` below must be non-empty).
