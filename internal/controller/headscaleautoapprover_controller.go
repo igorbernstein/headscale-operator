@@ -81,7 +81,7 @@ func (r *HeadscaleAutoApproverReconciler) Reconcile(ctx context.Context, req ctr
 				Type:    "Ready",
 				Status:  metav1.ConditionFalse,
 				Reason:  "HeadscaleNotFound",
-				Message: fmt.Sprintf("Referenced Headscale %q not found", approver.Spec.HeadscaleRef),
+				Message: fmt.Sprintf("Referenced %s not found", approver.Spec.HeadscaleRef),
 			}); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -191,15 +191,7 @@ func (r *HeadscaleAutoApproverReconciler) getHeadscale(
 	ctx context.Context,
 	approver *headscalev1beta2.HeadscaleAutoApprover,
 ) (*headscalev1beta2.Headscale, error) {
-	headscale := &headscalev1beta2.Headscale{}
-	err := r.Get(ctx, types.NamespacedName{
-		Name:      approver.Spec.HeadscaleRef,
-		Namespace: approver.Namespace,
-	}, headscale)
-	if err != nil {
-		return nil, err
-	}
-	return headscale, nil
+	return getReferencedHeadscale(ctx, r.Client, approver.Spec.HeadscaleRef, approver.Namespace)
 }
 
 // renderAndPush lists every HeadscaleAutoApprover that targets this Headscale,
@@ -337,7 +329,7 @@ func (r *HeadscaleAutoApproverReconciler) SetupWithManager(mgr ctrl.Manager) err
 		&headscalev1beta2.HeadscaleAutoApprover{},
 		headscaleRefIndex,
 		func(obj client.Object) []string {
-			return []string{obj.(*headscalev1beta2.HeadscaleAutoApprover).Spec.HeadscaleRef}
+			return []string{obj.(*headscalev1beta2.HeadscaleAutoApprover).Spec.HeadscaleRef.Name}
 		},
 	); err != nil {
 		return fmt.Errorf("failed to register %s field indexer: %w", headscaleRefIndex, err)

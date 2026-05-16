@@ -7,7 +7,8 @@ metadata:
   name: headscalepreauthkey-sample
 spec:
   # Reference to the Headscale instance
-  headscaleRef: headscale-sample
+  headscaleRef:
+    name: headscale-sample
   
   # Reference to the HeadscaleUser (use either headscaleUserRef or userId).
   # Both fields are optional and mutually exclusive: omit both to create a

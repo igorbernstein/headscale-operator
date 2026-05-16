@@ -76,9 +76,22 @@ spec:
                 pattern: ^$|^([0-9]+(\.[0-9]+)?(s|m|h))+$
                 type: string
               headscaleRef:
-                description: HeadscaleRef is the name of the Headscale instance to
-                  create the preauth key in
-                type: string
+                description: HeadscaleRef is a reference to the Headscale instance
+                  to create the preauth key in
+                properties:
+                  kind:
+                    default: Headscale
+                    description: Kind is the kind of the referenced Headscale instance.
+                    enum:
+                    - Headscale
+                    type: string
+                  name:
+                    description: Name is the name of the referenced Headscale instance.
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                required:
+                - name
+                type: object
               headscaleUserRef:
                 description: |-
                   HeadscaleUserRef is the name of the HeadscaleUser resource to create the preauth key for

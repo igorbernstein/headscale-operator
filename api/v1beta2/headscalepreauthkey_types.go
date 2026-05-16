@@ -6,10 +6,10 @@ import (
 
 // HeadscalePreAuthKeySpec defines the desired state of HeadscalePreAuthKey
 type HeadscalePreAuthKeySpec struct {
-	// HeadscaleRef is the name of the Headscale instance to create the preauth key in
+	// HeadscaleRef is a reference to the Headscale instance to create the preauth key in
 	// +kubebuilder:validation:Required
 	// +required
-	HeadscaleRef string `json:"headscaleRef"`
+	HeadscaleRef HeadscaleRef `json:"headscaleRef"`
 
 	// HeadscaleUserRef is the name of the HeadscaleUser resource to create the preauth key for
 	// HeadscaleUserRef and UserID are mutually exclusive. If neither is set, the key is

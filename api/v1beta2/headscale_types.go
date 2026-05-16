@@ -1,6 +1,8 @@
 package v1beta2
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -802,6 +804,28 @@ type Headscale struct {
 	// status defines the observed state of Headscale
 	// +optional
 	Status HeadscaleStatus `json:"status,omitzero"`
+}
+
+// HeadscaleRef defines a reference to a Headscale instance.
+type HeadscaleRef struct {
+	// Name is the name of the referenced Headscale instance.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	Name string `json:"name"`
+
+	// Kind is the kind of the referenced Headscale instance.
+	// +kubebuilder:default="Headscale"
+	// +kubebuilder:validation:Enum=Headscale
+	// +optional
+	Kind string `json:"kind,omitempty"`
+}
+
+func (r HeadscaleRef) String() string {
+	kind := r.Kind
+	if kind == "" {
+		kind = "Headscale"
+	}
+	return fmt.Sprintf("%s %q", kind, r.Name)
 }
 
 // +kubebuilder:object:root=true

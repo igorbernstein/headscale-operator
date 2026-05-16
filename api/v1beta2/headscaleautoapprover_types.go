@@ -27,11 +27,10 @@ type AutoApproverRoute struct {
 // the same Headscale and pushes the result via the Headscale gRPC SetPolicy API.
 // This requires the parent Headscale to be configured with `spec.config.policy.mode=database`.
 type HeadscaleAutoApproverSpec struct {
-	// HeadscaleRef is the name of the Headscale instance (in the same namespace)
+	// HeadscaleRef is a reference to the Headscale instance
 	// whose policy these auto-approvers contribute to.
-	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	// +required
-	HeadscaleRef string `json:"headscaleRef"`
+	HeadscaleRef HeadscaleRef `json:"headscaleRef"`
 
 	// Routes is the list of subnet routes to auto-approve when advertised by a
 	// node carrying one of the listed tags.

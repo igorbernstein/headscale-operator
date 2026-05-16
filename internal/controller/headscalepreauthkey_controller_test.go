@@ -110,7 +110,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Username:     "testuser",
 				},
 			}
@@ -184,7 +184,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef:     headscaleName,
+					HeadscaleRef:     headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
 					Reusable:         false,
@@ -244,7 +244,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					UserID:       123,
 					Expiration:   "2h",
 					Reusable:     true,
@@ -290,7 +290,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef:     "non-existent-headscale",
+					HeadscaleRef:     headscalev1beta2.HeadscaleRef{Name: "non-existent-headscale"},
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
 				},
@@ -342,7 +342,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef:     headscaleName,
+					HeadscaleRef:     headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					HeadscaleUserRef: "non-existent-user",
 					Expiration:       "1h",
 				},
@@ -394,7 +394,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Username:     "notreadyuser",
 				},
 			}
@@ -407,7 +407,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef:     headscaleName,
+					HeadscaleRef:     headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					HeadscaleUserRef: "user-not-ready",
 					Expiration:       "1h",
 				},
@@ -460,7 +460,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef:     headscaleName,
+					HeadscaleRef:     headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					HeadscaleUserRef: "user-ltt-not-ready",
 					Expiration:       "1h",
 				},
@@ -509,7 +509,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Username:     "lttnotreadyuser",
 				},
 			}
@@ -563,7 +563,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Expiration:   "1h",
 				},
 			}
@@ -582,7 +582,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef:     headscaleName,
+					HeadscaleRef:     headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					HeadscaleUserRef: headscaleUserName,
 					UserID:           456,
 					Expiration:       "1h",
@@ -603,7 +603,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Expiration:   "1h",
 					Tags:         []string{"tag:ci"},
 				},
@@ -653,7 +653,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef:     headscaleName,
+					HeadscaleRef:     headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
 				},
@@ -704,7 +704,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Finalizers: []string{headscalePreAuthKeyFinalizer},
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef:     "non-existent-headscale",
+					HeadscaleRef:     headscalev1beta2.HeadscaleRef{Name: "non-existent-headscale"},
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
 				},
@@ -756,7 +756,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef:     headscaleName,
+					HeadscaleRef:     headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
 					SecretName:       customSecretName,
@@ -817,7 +817,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
-					HeadscaleRef:     headscaleName,
+					HeadscaleRef:     headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
 				},

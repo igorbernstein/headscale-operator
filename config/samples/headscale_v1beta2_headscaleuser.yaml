@@ -7,7 +7,8 @@ metadata:
   name: headscaleuser-sample
 spec:
   # Reference to the Headscale instance
-  headscaleRef: headscale-sample
+  headscaleRef:
+    name: headscale-sample
   
   # Username must be unique and follow DNS label rules
   username: example-user

@@ -62,10 +62,22 @@ spec:
                 type: array
               headscaleRef:
                 description: |-
-                  HeadscaleRef is the name of the Headscale instance (in the same namespace)
+                  HeadscaleRef is a reference to the Headscale instance
                   whose policy these auto-approvers contribute to.
-                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                type: string
+                properties:
+                  kind:
+                    default: Headscale
+                    description: Kind is the kind of the referenced Headscale instance.
+                    enum:
+                    - Headscale
+                    type: string
+                  name:
+                    description: Name is the name of the referenced Headscale instance.
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                required:
+                - name
+                type: object
               routes:
                 description: |-
                   Routes is the list of subnet routes to auto-approve when advertised by a

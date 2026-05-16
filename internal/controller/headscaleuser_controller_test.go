@@ -124,7 +124,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Username:     "testuser",
 					DisplayName:  "Test User",
 					Email:        "test@example.com",
@@ -169,7 +169,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: "non-existent-headscale",
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: "non-existent-headscale"},
 					Username:     "testuser2",
 				},
 			}
@@ -220,7 +220,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: "non-existent-headscale-ltt",
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: "non-existent-headscale-ltt"},
 					Username:     "lttuser",
 				},
 			}
@@ -293,7 +293,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Username:     "immutableuser",
 					DisplayName:  "Original Name",
 					Email:        "original@example.com",
@@ -331,7 +331,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Username:     "deleteuser",
 				},
 			}
@@ -415,7 +415,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: tempHeadscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: tempHeadscaleName},
 					Username:     "orphaneduser",
 				},
 			}
@@ -465,7 +465,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Username:     "conditionsuser",
 				},
 			}
@@ -508,7 +508,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					// Username is missing
 				},
 			}
@@ -524,7 +524,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Username:     "multiuser1",
 				},
 			}
@@ -537,7 +537,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: headscalev1beta2.HeadscaleUserSpec{
-					HeadscaleRef: headscaleName,
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: headscaleName},
 					Username:     "multiuser2",
 				},
 			}

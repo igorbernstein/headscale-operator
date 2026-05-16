@@ -41,7 +41,7 @@ var _ = Describe("HeadscaleAutoApprover Controller", func() {
 						Namespace: namespace,
 					},
 					Spec: headscalev1beta2.HeadscaleAutoApproverSpec{
-						HeadscaleRef: "missing-headscale",
+						HeadscaleRef: headscalev1beta2.HeadscaleRef{Name: "missing-headscale"},
 						Routes: []headscalev1beta2.AutoApproverRoute{
 							{CIDR: "10.0.0.0/8", Tags: []string{"tag:router"}},
 						},

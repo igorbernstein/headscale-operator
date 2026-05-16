@@ -70,19 +70,15 @@ func (r *HeadscalePreAuthKeyReconciler) Reconcile(ctx context.Context, req ctrl.
 	}
 
 	// Get the referenced Headscale instance
-	headscale := &headscalev1beta2.Headscale{}
-	err = r.Get(ctx, types.NamespacedName{
-		Name:      preAuthKey.Spec.HeadscaleRef,
-		Namespace: preAuthKey.Namespace,
-	}, headscale)
+	headscale, err := getReferencedHeadscale(ctx, r.Client, preAuthKey.Spec.HeadscaleRef, preAuthKey.Namespace)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Error(err, "Referenced Headscale instance not found", "HeadscaleRef", preAuthKey.Spec.HeadscaleRef)
+			log.Error(err, "Referenced Headscale instance not found", "HeadscaleRef", preAuthKey.Spec.HeadscaleRef.Name)
 			if err := r.updateStatusCondition(ctx, preAuthKey, metav1.Condition{
 				Type:    "Ready",
 				Status:  metav1.ConditionFalse,
 				Reason:  "HeadscaleNotFound",
-				Message: fmt.Sprintf("Referenced Headscale instance %s not found", preAuthKey.Spec.HeadscaleRef),
+				Message: fmt.Sprintf("Referenced %s not found", preAuthKey.Spec.HeadscaleRef),
 			}); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -256,13 +252,13 @@ func (r *HeadscalePreAuthKeyReconciler) handleDeletion(
 		// Get the referenced Headscale instance
 		headscale := &headscalev1beta2.Headscale{}
 		err := r.Get(ctx, types.NamespacedName{
-			Name:      preAuthKey.Spec.HeadscaleRef,
+			Name:      preAuthKey.Spec.HeadscaleRef.Name,
 			Namespace: preAuthKey.Namespace,
 		}, headscale)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				log.Info("Referenced Headscale instance not found during deletion, removing finalizer",
-					"HeadscaleRef", preAuthKey.Spec.HeadscaleRef)
+					"HeadscaleRef", preAuthKey.Spec.HeadscaleRef.Name)
 				controllerutil.RemoveFinalizer(preAuthKey, headscalePreAuthKeyFinalizer)
 				if err := r.Update(ctx, preAuthKey); err != nil {
 					return ctrl.Result{}, err

@@ -61,9 +61,22 @@ spec:
                 - message: email is immutable
                   rule: self == oldSelf
               headscaleRef:
-                description: HeadscaleRef references the Headscale instance to create
-                  the user in
-                type: string
+                description: HeadscaleRef is a reference to the Headscale instance
+                  to create the user in
+                properties:
+                  kind:
+                    default: Headscale
+                    description: Kind is the kind of the referenced Headscale instance.
+                    enum:
+                    - Headscale
+                    type: string
+                  name:
+                    description: Name is the name of the referenced Headscale instance.
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                required:
+                - name
+                type: object
               pictureURL:
                 description: |-
                   PictureURL is the URL to the user's profile picture

@@ -6,9 +6,10 @@ import (
 
 // HeadscaleUserSpec defines the desired state of HeadscaleUser
 type HeadscaleUserSpec struct {
-	// HeadscaleRef references the Headscale instance to create the user in
+	// HeadscaleRef is a reference to the Headscale instance to create the user in
+	// +kubebuilder:validation:Required
 	// +required
-	HeadscaleRef string `json:"headscaleRef"`
+	HeadscaleRef HeadscaleRef `json:"headscaleRef"`
 
 	// Username is the unique username for the Headscale user
 	// This field is immutable after creation

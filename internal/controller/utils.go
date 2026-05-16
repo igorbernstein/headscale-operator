@@ -29,6 +29,16 @@ import (
 	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 )
 
+// getReferencedHeadscale resolves a HeadscaleRef to a Headscale instance.
+// The defaultNamespace argument is used as the lookup namespace for the resource.
+func getReferencedHeadscale(ctx context.Context, k8sClient client.Client, ref headscalev1beta2.HeadscaleRef, defaultNamespace string) (*headscalev1beta2.Headscale, error) {
+	h := &headscalev1beta2.Headscale{}
+	if err := k8sClient.Get(ctx, types.NamespacedName{Name: ref.Name, Namespace: defaultNamespace}, h); err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
 // extractPort extracts the port number from an address string like "127.0.0.1:8080" or ":8080"
 func extractPort(addr string, defaultPort int32) int32 {
 	if addr == "" {

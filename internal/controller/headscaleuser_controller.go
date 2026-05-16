@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -65,19 +64,15 @@ func (r *HeadscaleUserReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Get the referenced Headscale instance
-	headscale := &headscalev1beta2.Headscale{}
-	err = r.Get(ctx, types.NamespacedName{
-		Name:      headscaleUser.Spec.HeadscaleRef,
-		Namespace: headscaleUser.Namespace,
-	}, headscale)
+	headscale, err := getReferencedHeadscale(ctx, r.Client, headscaleUser.Spec.HeadscaleRef, headscaleUser.Namespace)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Error(err, "Referenced Headscale instance not found", "HeadscaleRef", headscaleUser.Spec.HeadscaleRef)
+			log.Error(err, "Referenced Headscale instance not found", "HeadscaleRef", headscaleUser.Spec.HeadscaleRef.Name)
 			if err := r.updateStatusCondition(ctx, headscaleUser, metav1.Condition{
 				Type:    "Ready",
 				Status:  metav1.ConditionFalse,
 				Reason:  "HeadscaleNotFound",
-				Message: fmt.Sprintf("Referenced Headscale instance %s not found", headscaleUser.Spec.HeadscaleRef),
+				Message: fmt.Sprintf("Referenced %s not found", headscaleUser.Spec.HeadscaleRef),
 			}); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -162,14 +157,10 @@ func (r *HeadscaleUserReconciler) handleDeletion(ctx context.Context, headscaleU
 
 	if controllerutil.ContainsFinalizer(headscaleUser, headscaleUserFinalizer) {
 		// Get the referenced Headscale instance
-		headscale := &headscalev1beta2.Headscale{}
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      headscaleUser.Spec.HeadscaleRef,
-			Namespace: headscaleUser.Namespace,
-		}, headscale)
+		headscale, err := getReferencedHeadscale(ctx, r.Client, headscaleUser.Spec.HeadscaleRef, headscaleUser.Namespace)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				log.Info("Referenced Headscale instance not found during deletion, removing finalizer", "HeadscaleRef", headscaleUser.Spec.HeadscaleRef)
+				log.Info("Referenced Headscale instance not found during deletion, removing finalizer", "HeadscaleRef", headscaleUser.Spec.HeadscaleRef.Name)
 				controllerutil.RemoveFinalizer(headscaleUser, headscaleUserFinalizer)
 				if err := r.Update(ctx, headscaleUser); err != nil {
 					return ctrl.Result{}, err
