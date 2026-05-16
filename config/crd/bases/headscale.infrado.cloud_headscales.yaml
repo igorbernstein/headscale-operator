@@ -16,7 +16,7 @@ spec:
     singular: headscale
   scope: Namespaced
   versions:
-  - name: v1beta1
+  - name: v1beta2
     schema:
       openAPIV3Schema:
         description: Headscale is the Schema for the headscales API

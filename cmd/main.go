@@ -19,7 +19,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	headscalev1beta1 "github.com/infradohq/headscale-operator/api/v1beta1"
+	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 	"github.com/infradohq/headscale-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -32,7 +32,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(headscalev1beta1.AddToScheme(scheme))
+	utilruntime.Must(headscalev1beta2.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

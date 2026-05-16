@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	headscalev1beta1 "github.com/infradohq/headscale-operator/api/v1beta1"
+	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 )
 
 // extractPort extracts the port number from an address string like "127.0.0.1:8080" or ":8080"
@@ -52,7 +52,7 @@ func extractPort(addr string, defaultPort int32) int32 {
 
 // getAPIKey retrieves the API key from the secret created by the apikey-manager sidecar.
 // This function is shared across all controllers that need to interact with the Headscale API.
-func getAPIKey(ctx context.Context, k8sClient client.Client, headscale *headscalev1beta1.Headscale) (string, error) {
+func getAPIKey(ctx context.Context, k8sClient client.Client, headscale *headscalev1beta2.Headscale) (string, error) {
 	secretName := apiKeySecretNameFor(headscale)
 
 	// Get the secret
@@ -77,7 +77,7 @@ func getAPIKey(ctx context.Context, k8sClient client.Client, headscale *headscal
 // getGRPCServiceAddress returns the gRPC service address for the Headscale instance.
 // This function is shared across all controllers that need to connect to the Headscale gRPC service.
 // It returns the service address in the format: <service-name>.<namespace>.svc:<port>
-func getGRPCServiceAddress(headscale *headscalev1beta1.Headscale) string {
+func getGRPCServiceAddress(headscale *headscalev1beta2.Headscale) string {
 	// Extract the gRPC port from the configuration
 	grpcPort := extractPort(headscale.Spec.Config.GRPCListenAddr, 50443)
 

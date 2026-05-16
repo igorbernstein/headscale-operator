@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	headscalev1beta1 "github.com/infradohq/headscale-operator/api/v1beta1"
+	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 	hsclient "github.com/infradohq/headscale-operator/pkg/headscale"
 )
 
@@ -57,7 +57,7 @@ type HeadscaleAutoApproverReconciler struct {
 func (r *HeadscaleAutoApproverReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	approver := &headscalev1beta1.HeadscaleAutoApprover{}
+	approver := &headscalev1beta2.HeadscaleAutoApprover{}
 	if err := r.Get(ctx, req.NamespacedName, approver); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -149,7 +149,7 @@ func (r *HeadscaleAutoApproverReconciler) Reconcile(ctx context.Context, req ctr
 // reconciles (collectApprovers excludes the deleted one).
 func (r *HeadscaleAutoApproverReconciler) handleDeletion(
 	ctx context.Context,
-	approver *headscalev1beta1.HeadscaleAutoApprover,
+	approver *headscalev1beta2.HeadscaleAutoApprover,
 ) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -178,7 +178,7 @@ func (r *HeadscaleAutoApproverReconciler) handleDeletion(
 
 func (r *HeadscaleAutoApproverReconciler) ensureFinalizer(
 	ctx context.Context,
-	approver *headscalev1beta1.HeadscaleAutoApprover,
+	approver *headscalev1beta2.HeadscaleAutoApprover,
 ) error {
 	if controllerutil.ContainsFinalizer(approver, headscaleAutoApproverFinalizer) {
 		return nil
@@ -189,9 +189,9 @@ func (r *HeadscaleAutoApproverReconciler) ensureFinalizer(
 
 func (r *HeadscaleAutoApproverReconciler) getHeadscale(
 	ctx context.Context,
-	approver *headscalev1beta1.HeadscaleAutoApprover,
-) (*headscalev1beta1.Headscale, error) {
-	headscale := &headscalev1beta1.Headscale{}
+	approver *headscalev1beta2.HeadscaleAutoApprover,
+) (*headscalev1beta2.Headscale, error) {
+	headscale := &headscalev1beta2.Headscale{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      approver.Spec.HeadscaleRef,
 		Namespace: approver.Namespace,
@@ -207,7 +207,7 @@ func (r *HeadscaleAutoApproverReconciler) getHeadscale(
 // JSON document via SetPolicy.
 func (r *HeadscaleAutoApproverReconciler) renderAndPush(
 	ctx context.Context,
-	headscale *headscalev1beta1.Headscale,
+	headscale *headscalev1beta2.Headscale,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -248,9 +248,9 @@ func (r *HeadscaleAutoApproverReconciler) renderAndPush(
 // spec.headscaleRef field index for server-side filtering.
 func (r *HeadscaleAutoApproverReconciler) collectApprovers(
 	ctx context.Context,
-	headscale *headscalev1beta1.Headscale,
-) ([]headscalev1beta1.HeadscaleAutoApprover, error) {
-	list := &headscalev1beta1.HeadscaleAutoApproverList{}
+	headscale *headscalev1beta2.Headscale,
+) ([]headscalev1beta2.HeadscaleAutoApprover, error) {
+	list := &headscalev1beta2.HeadscaleAutoApproverList{}
 	if err := r.List(ctx, list,
 		client.InNamespace(headscale.Namespace),
 		client.MatchingFields{headscaleRefIndex: headscale.Name},
@@ -258,7 +258,7 @@ func (r *HeadscaleAutoApproverReconciler) collectApprovers(
 		return nil, err
 	}
 
-	out := make([]headscalev1beta1.HeadscaleAutoApprover, 0, len(list.Items))
+	out := make([]headscalev1beta2.HeadscaleAutoApprover, 0, len(list.Items))
 	for _, item := range list.Items {
 		if item.GetDeletionTimestamp() != nil {
 			continue
@@ -272,7 +272,7 @@ func (r *HeadscaleAutoApproverReconciler) collectApprovers(
 
 func (r *HeadscaleAutoApproverReconciler) setCondition(
 	ctx context.Context,
-	approver *headscalev1beta1.HeadscaleAutoApprover,
+	approver *headscalev1beta2.HeadscaleAutoApprover,
 	condition metav1.Condition,
 ) error {
 	patch := client.MergeFrom(approver.DeepCopy())
@@ -290,11 +290,11 @@ func (r *HeadscaleAutoApproverReconciler) requeueApproversForHeadscale(
 	ctx context.Context,
 	obj client.Object,
 ) []reconcile.Request {
-	headscale, ok := obj.(*headscalev1beta1.Headscale)
+	headscale, ok := obj.(*headscalev1beta2.Headscale)
 	if !ok {
 		return nil
 	}
-	list := &headscalev1beta1.HeadscaleAutoApproverList{}
+	list := &headscalev1beta2.HeadscaleAutoApproverList{}
 	if err := r.List(ctx, list,
 		client.InNamespace(headscale.Namespace),
 		client.MatchingFields{headscaleRefIndex: headscale.Name},
@@ -334,21 +334,21 @@ var reconcilableUpdates = predicate.Funcs{
 func (r *HeadscaleAutoApproverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
-		&headscalev1beta1.HeadscaleAutoApprover{},
+		&headscalev1beta2.HeadscaleAutoApprover{},
 		headscaleRefIndex,
 		func(obj client.Object) []string {
-			return []string{obj.(*headscalev1beta1.HeadscaleAutoApprover).Spec.HeadscaleRef}
+			return []string{obj.(*headscalev1beta2.HeadscaleAutoApprover).Spec.HeadscaleRef}
 		},
 	); err != nil {
 		return fmt.Errorf("failed to register %s field indexer: %w", headscaleRefIndex, err)
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&headscalev1beta1.HeadscaleAutoApprover{},
+		For(&headscalev1beta2.HeadscaleAutoApprover{},
 			builder.WithPredicates(reconcilableUpdates),
 		).
 		Watches(
-			&headscalev1beta1.Headscale{},
+			&headscalev1beta2.Headscale{},
 			handler.EnqueueRequestsFromMapFunc(r.requeueApproversForHeadscale),
 			// Headscale CRs receive frequent status updates from their own
 			// reconciler; only rendering changes matter here, so filter to
@@ -400,8 +400,8 @@ func parseInlinePolicy(inline string) (policyDocument, error) {
 // buildPolicyDocument merges the inline base, tag owners, and auto-approver
 // entries into a single JSON document ready for SetPolicy.
 func buildPolicyDocument(
-	base *headscalev1beta1.ACLPolicyConfig,
-	approvers []headscalev1beta1.HeadscaleAutoApprover,
+	base *headscalev1beta2.ACLPolicyConfig,
+	approvers []headscalev1beta2.HeadscaleAutoApprover,
 ) (string, error) {
 	inline := ""
 	if base != nil {

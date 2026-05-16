@@ -1,7 +1,7 @@
-// Package v1beta1 contains API Schema definitions for the headscale v1beta1 API group.
+// Package v1beta2 contains API Schema definitions for the headscale v1beta2 API group.
 // +kubebuilder:object:generate=true
 // +groupName=headscale.infrado.cloud
-package v1beta1
+package v1beta2
 
 import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -11,7 +11,7 @@ import (
 var (
 	// SchemeGroupVersion is group version used to register these objects.
 	// This name is used by applyconfiguration generators (e.g. controller-gen).
-	SchemeGroupVersion = schema.GroupVersion{Group: "headscale.infrado.cloud", Version: "v1beta1"}
+	SchemeGroupVersion = schema.GroupVersion{Group: "headscale.infrado.cloud", Version: "v1beta2"}
 
 	// GroupVersion is an alias for SchemeGroupVersion, for backward compatibility.
 	GroupVersion = SchemeGroupVersion

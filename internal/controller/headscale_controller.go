@@ -23,7 +23,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 
-	headscalev1beta1 "github.com/infradohq/headscale-operator/api/v1beta1"
+	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 )
 
 // HeadscaleReconciler reconciles a Headscale object
@@ -40,12 +40,12 @@ const (
 // that multiple Headscale instances can coexist in the same namespace. The
 // StatefulSet, Service, ServiceAccount, Role, and RoleBinding all share
 // h.Name directly; only these suffixed names need a helper.
-func configMapNameFor(h *headscalev1beta1.Headscale) string      { return h.Name + "-config" }
-func metricsServiceNameFor(h *headscalev1beta1.Headscale) string { return h.Name + "-metrics" }
+func configMapNameFor(h *headscalev1beta2.Headscale) string      { return h.Name + "-config" }
+func metricsServiceNameFor(h *headscalev1beta2.Headscale) string { return h.Name + "-metrics" }
 
 // apiKeySecretNameFor returns the configured secret name, falling back to
 // "<name>-api-key" so multiple instances in one namespace don't collide.
-func apiKeySecretNameFor(h *headscalev1beta1.Headscale) string {
+func apiKeySecretNameFor(h *headscalev1beta2.Headscale) string {
 	if h.Spec.APIKey.SecretName != "" {
 		return h.Spec.APIKey.SecretName
 	}
@@ -70,7 +70,7 @@ func (r *HeadscaleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	log := logf.FromContext(ctx)
 
 	// Fetch the Headscale instance
-	headscale := &headscalev1beta1.Headscale{}
+	headscale := &headscalev1beta2.Headscale{}
 	err := r.Get(ctx, req.NamespacedName, headscale)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -159,7 +159,7 @@ func (r *HeadscaleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // status condition reflecting the result. An empty inline policy is treated as
 // valid so users always get explicit confirmation that the operator inspected
 // their config.
-func validateACLPolicy(headscale *headscalev1beta1.Headscale) metav1.Condition {
+func validateACLPolicy(headscale *headscalev1beta2.Headscale) metav1.Condition {
 	cond := metav1.Condition{
 		Type:               "PolicyValid",
 		ObservedGeneration: headscale.Generation,
@@ -177,7 +177,7 @@ func validateACLPolicy(headscale *headscalev1beta1.Headscale) metav1.Condition {
 }
 
 // handleDeletion handles the deletion of a Headscale instance
-func (r *HeadscaleReconciler) handleDeletion(ctx context.Context, headscale *headscalev1beta1.Headscale) (ctrl.Result, error) {
+func (r *HeadscaleReconciler) handleDeletion(ctx context.Context, headscale *headscalev1beta2.Headscale) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 	if controllerutil.ContainsFinalizer(headscale, headscaleFinalizer) {
 		log.Info("Performing cleanup for Headscale", "Name", headscale.Name)
@@ -212,7 +212,7 @@ func (r *HeadscaleReconciler) handleDeletion(ctx context.Context, headscale *hea
 }
 
 // ensureFinalizer ensures the finalizer is present on the Headscale instance
-func (r *HeadscaleReconciler) ensureFinalizer(ctx context.Context, headscale *headscalev1beta1.Headscale) error {
+func (r *HeadscaleReconciler) ensureFinalizer(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
 	if !controllerutil.ContainsFinalizer(headscale, headscaleFinalizer) {
 		controllerutil.AddFinalizer(headscale, headscaleFinalizer)
 		return r.Update(ctx, headscale)
@@ -221,7 +221,7 @@ func (r *HeadscaleReconciler) ensureFinalizer(ctx context.Context, headscale *he
 }
 
 // reconcileConfigMap reconciles the ConfigMap for Headscale
-func (r *HeadscaleReconciler) reconcileConfigMap(ctx context.Context, headscale *headscalev1beta1.Headscale) error {
+func (r *HeadscaleReconciler) reconcileConfigMap(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
 	log := logf.FromContext(ctx)
 
 	configMap, err := r.configMapForHeadscale(headscale)
@@ -251,7 +251,7 @@ func (r *HeadscaleReconciler) reconcileConfigMap(ctx context.Context, headscale 
 }
 
 // reconcileStatefulSet reconciles the StatefulSet for Headscale
-func (r *HeadscaleReconciler) reconcileStatefulSet(ctx context.Context, headscale *headscalev1beta1.Headscale) error {
+func (r *HeadscaleReconciler) reconcileStatefulSet(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
 	log := logf.FromContext(ctx)
 
 	// Compute hash of the config spec directly from the Headscale CR
@@ -285,7 +285,7 @@ func (r *HeadscaleReconciler) reconcileStatefulSet(ctx context.Context, headscal
 }
 
 // reconcileService reconciles the Service for Headscale
-func (r *HeadscaleReconciler) reconcileService(ctx context.Context, headscale *headscalev1beta1.Headscale) error {
+func (r *HeadscaleReconciler) reconcileService(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
 	log := logf.FromContext(ctx)
 
 	service := r.serviceForHeadscale(headscale)
@@ -305,7 +305,7 @@ func (r *HeadscaleReconciler) reconcileService(ctx context.Context, headscale *h
 }
 
 // reconcileMetricsService reconciles the Metrics Service for Headscale
-func (r *HeadscaleReconciler) reconcileMetricsService(ctx context.Context, headscale *headscalev1beta1.Headscale) error {
+func (r *HeadscaleReconciler) reconcileMetricsService(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
 	log := logf.FromContext(ctx)
 
 	metricsService := r.metricsServiceForHeadscale(headscale)
@@ -325,7 +325,7 @@ func (r *HeadscaleReconciler) reconcileMetricsService(ctx context.Context, heads
 }
 
 // reconcileServiceAccount reconciles the ServiceAccount for Headscale pods
-func (r *HeadscaleReconciler) reconcileServiceAccount(ctx context.Context, headscale *headscalev1beta1.Headscale) error {
+func (r *HeadscaleReconciler) reconcileServiceAccount(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
 	log := logf.FromContext(ctx)
 
 	sa := r.serviceAccountForHeadscale(headscale)
@@ -352,7 +352,7 @@ func (r *HeadscaleReconciler) reconcileServiceAccount(ctx context.Context, heads
 }
 
 // reconcileRole reconciles the Role for Headscale pods
-func (r *HeadscaleReconciler) reconcileRole(ctx context.Context, headscale *headscalev1beta1.Headscale) error {
+func (r *HeadscaleReconciler) reconcileRole(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
 	log := logf.FromContext(ctx)
 
 	role := r.roleForHeadscale(headscale)
@@ -379,7 +379,7 @@ func (r *HeadscaleReconciler) reconcileRole(ctx context.Context, headscale *head
 }
 
 // reconcileRoleBinding reconciles the RoleBinding for Headscale pods
-func (r *HeadscaleReconciler) reconcileRoleBinding(ctx context.Context, headscale *headscalev1beta1.Headscale) error {
+func (r *HeadscaleReconciler) reconcileRoleBinding(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
 	log := logf.FromContext(ctx)
 
 	rb := r.roleBindingForHeadscale(headscale)
@@ -411,7 +411,7 @@ func (r *HeadscaleReconciler) reconcileRoleBinding(ctx context.Context, headscal
 // policy here.
 func (r *HeadscaleReconciler) updateStatus(
 	ctx context.Context,
-	headscale *headscalev1beta1.Headscale,
+	headscale *headscalev1beta2.Headscale,
 	policyCond metav1.Condition,
 ) error {
 	patch := client.MergeFrom(headscale.DeepCopy())
@@ -434,7 +434,7 @@ func (r *HeadscaleReconciler) updateStatus(
 }
 
 // configMapForHeadscale returns a ConfigMap object for Headscale configuration
-func (r *HeadscaleReconciler) configMapForHeadscale(h *headscalev1beta1.Headscale) (*corev1.ConfigMap, error) {
+func (r *HeadscaleReconciler) configMapForHeadscale(h *headscalev1beta2.Headscale) (*corev1.ConfigMap, error) {
 	configData, err := yaml.Marshal(h.Spec.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal headscale config: %w", err)
@@ -453,7 +453,7 @@ func (r *HeadscaleReconciler) configMapForHeadscale(h *headscalev1beta1.Headscal
 }
 
 // computeConfigHashFromSpec computes a SHA256 hash of the Headscale config spec
-func computeConfigHashFromSpec(config *headscalev1beta1.HeadscaleConfig) string {
+func computeConfigHashFromSpec(config *headscalev1beta2.HeadscaleConfig) string {
 	// Marshal the config to YAML to get a consistent representation
 	configData, err := yaml.Marshal(config)
 	if err != nil {
@@ -468,7 +468,7 @@ func computeConfigHashFromSpec(config *headscalev1beta1.HeadscaleConfig) string 
 }
 
 // statefulSetForHeadscale returns a StatefulSet object for Headscale
-func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta1.Headscale, configHash string) *appsv1.StatefulSet {
+func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headscale, configHash string) *appsv1.StatefulSet {
 	labels := labelsForHeadscale(h.Name)
 	replicas := h.Spec.Replicas
 
@@ -706,7 +706,7 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta1.Headsc
 }
 
 // serviceForHeadscale returns a Service object for Headscale
-func (r *HeadscaleReconciler) serviceForHeadscale(h *headscalev1beta1.Headscale) *corev1.Service {
+func (r *HeadscaleReconciler) serviceForHeadscale(h *headscalev1beta2.Headscale) *corev1.Service {
 	labels := labelsForHeadscale(h.Name)
 
 	// Extract ports from configuration
@@ -741,7 +741,7 @@ func (r *HeadscaleReconciler) serviceForHeadscale(h *headscalev1beta1.Headscale)
 }
 
 // metricsServiceForHeadscale returns a Service object for Headscale metrics
-func (r *HeadscaleReconciler) metricsServiceForHeadscale(h *headscalev1beta1.Headscale) *corev1.Service {
+func (r *HeadscaleReconciler) metricsServiceForHeadscale(h *headscalev1beta2.Headscale) *corev1.Service {
 	labels := labelsForHeadscale(h.Name)
 
 	// Extract metrics port from configuration
@@ -769,7 +769,7 @@ func (r *HeadscaleReconciler) metricsServiceForHeadscale(h *headscalev1beta1.Hea
 }
 
 // serviceAccountForHeadscale returns a ServiceAccount object for Headscale pods
-func (r *HeadscaleReconciler) serviceAccountForHeadscale(h *headscalev1beta1.Headscale) *corev1.ServiceAccount {
+func (r *HeadscaleReconciler) serviceAccountForHeadscale(h *headscalev1beta2.Headscale) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      h.Name,
@@ -780,7 +780,7 @@ func (r *HeadscaleReconciler) serviceAccountForHeadscale(h *headscalev1beta1.Hea
 }
 
 // roleForHeadscale returns a Role object for Headscale pods with permissions to manage Secrets
-func (r *HeadscaleReconciler) roleForHeadscale(h *headscalev1beta1.Headscale) *rbacv1.Role {
+func (r *HeadscaleReconciler) roleForHeadscale(h *headscalev1beta2.Headscale) *rbacv1.Role {
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      h.Name,
@@ -804,7 +804,7 @@ func (r *HeadscaleReconciler) roleForHeadscale(h *headscalev1beta1.Headscale) *r
 }
 
 // roleBindingForHeadscale returns a RoleBinding object for Headscale pods
-func (r *HeadscaleReconciler) roleBindingForHeadscale(h *headscalev1beta1.Headscale) *rbacv1.RoleBinding {
+func (r *HeadscaleReconciler) roleBindingForHeadscale(h *headscalev1beta2.Headscale) *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      h.Name,
@@ -853,7 +853,7 @@ func labelsForHeadscale(name string) map[string]string {
 // SetupWithManager sets up the controller with the Manager.
 func (r *HeadscaleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&headscalev1beta1.Headscale{}).
+		For(&headscalev1beta2.Headscale{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).

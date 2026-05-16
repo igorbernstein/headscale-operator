@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	headscalev1beta1 "github.com/infradohq/headscale-operator/api/v1beta1"
+	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 )
 
 var _ = Describe("HeadscaleAutoApprover Controller", func() {
@@ -30,19 +30,19 @@ var _ = Describe("HeadscaleAutoApprover Controller", func() {
 			Name:      resourceName,
 			Namespace: namespace,
 		}
-		approver := &headscalev1beta1.HeadscaleAutoApprover{}
+		approver := &headscalev1beta2.HeadscaleAutoApprover{}
 
 		BeforeEach(func() {
 			err := k8sClient.Get(ctx, typeNamespacedName, approver)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &headscalev1beta1.HeadscaleAutoApprover{
+				resource := &headscalev1beta2.HeadscaleAutoApprover{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: namespace,
 					},
-					Spec: headscalev1beta1.HeadscaleAutoApproverSpec{
+					Spec: headscalev1beta2.HeadscaleAutoApproverSpec{
 						HeadscaleRef: "missing-headscale",
-						Routes: []headscalev1beta1.AutoApproverRoute{
+						Routes: []headscalev1beta2.AutoApproverRoute{
 							{CIDR: "10.0.0.0/8", Tags: []string{"tag:router"}},
 						},
 					},
@@ -52,7 +52,7 @@ var _ = Describe("HeadscaleAutoApprover Controller", func() {
 		})
 
 		AfterEach(func() {
-			resource := &headscalev1beta1.HeadscaleAutoApprover{}
+			resource := &headscalev1beta2.HeadscaleAutoApprover{}
 			if err := k8sClient.Get(ctx, typeNamespacedName, resource); err != nil {
 				return
 			}
@@ -67,7 +67,7 @@ var _ = Describe("HeadscaleAutoApprover Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(func() bool {
-				return errors.IsNotFound(k8sClient.Get(ctx, typeNamespacedName, &headscalev1beta1.HeadscaleAutoApprover{}))
+				return errors.IsNotFound(k8sClient.Get(ctx, typeNamespacedName, &headscalev1beta2.HeadscaleAutoApprover{}))
 			}, cleanupTimeout, cleanupInterval).Should(BeTrue())
 		})
 
@@ -82,7 +82,7 @@ var _ = Describe("HeadscaleAutoApprover Controller", func() {
 			// watch and re-queues this approver via requeueApproversForHeadscale.
 			Expect(res).To(Equal(reconcile.Result{}))
 
-			updated := &headscalev1beta1.HeadscaleAutoApprover{}
+			updated := &headscalev1beta2.HeadscaleAutoApprover{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, updated)).To(Succeed())
 			cond := findCondition(updated.Status.Conditions, "Ready")
 			Expect(cond).NotTo(BeNil())
@@ -94,24 +94,24 @@ var _ = Describe("HeadscaleAutoApprover Controller", func() {
 
 var _ = Describe("buildPolicyDocument", func() {
 	It("merges the inline base, tag owners, and approver entries deterministically", func() {
-		base := &headscalev1beta1.ACLPolicyConfig{
+		base := &headscalev1beta2.ACLPolicyConfig{
 			TagOwners: map[string][]string{
 				"tag:router": {"group:admin"},
 			},
 			Inline: `{"acls":[{"action":"accept","src":["*"],"dst":["*:*"]}]}`,
 		}
-		approvers := []headscalev1beta1.HeadscaleAutoApprover{
+		approvers := []headscalev1beta2.HeadscaleAutoApprover{
 			{
-				Spec: headscalev1beta1.HeadscaleAutoApproverSpec{
-					Routes: []headscalev1beta1.AutoApproverRoute{
+				Spec: headscalev1beta2.HeadscaleAutoApproverSpec{
+					Routes: []headscalev1beta2.AutoApproverRoute{
 						{CIDR: "10.0.0.0/8", Tags: []string{"tag:router"}},
 					},
 					ExitNodeTags: []string{"tag:exit"},
 				},
 			},
 			{
-				Spec: headscalev1beta1.HeadscaleAutoApproverSpec{
-					Routes: []headscalev1beta1.AutoApproverRoute{
+				Spec: headscalev1beta2.HeadscaleAutoApproverSpec{
+					Routes: []headscalev1beta2.AutoApproverRoute{
 						{CIDR: "10.0.0.0/8", Tags: []string{"tag:router"}}, // duplicate
 						{CIDR: "192.168.0.0/16", Tags: []string{"tag:router"}},
 					},
@@ -140,12 +140,12 @@ var _ = Describe("buildPolicyDocument", func() {
 	})
 
 	It("returns an error when inline base is invalid JSON", func() {
-		_, err := buildPolicyDocument(&headscalev1beta1.ACLPolicyConfig{Inline: "not json"}, nil)
+		_, err := buildPolicyDocument(&headscalev1beta2.ACLPolicyConfig{Inline: "not json"}, nil)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("accepts HuJSON (comments and trailing commas) in the inline base", func() {
-		base := &headscalev1beta1.ACLPolicyConfig{
+		base := &headscalev1beta2.ACLPolicyConfig{
 			Inline: `{
 				// Default-allow ACL while we figure out the real ones.
 				"acls": [

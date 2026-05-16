@@ -1,4 +1,4 @@
-apiVersion: headscale.infrado.cloud/v1beta1
+apiVersion: headscale.infrado.cloud/v1beta2
 kind: HeadscaleAutoApprover
 metadata:
   labels:

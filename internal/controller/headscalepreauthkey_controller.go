@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	headscalev1beta1 "github.com/infradohq/headscale-operator/api/v1beta1"
+	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 	hsclient "github.com/infradohq/headscale-operator/pkg/headscale"
 )
 
@@ -48,7 +48,7 @@ func (r *HeadscalePreAuthKeyReconciler) Reconcile(ctx context.Context, req ctrl.
 	log := logf.FromContext(ctx)
 
 	// Fetch the HeadscalePreAuthKey instance
-	preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{}
+	preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{}
 	err := r.Get(ctx, req.NamespacedName, preAuthKey)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -70,7 +70,7 @@ func (r *HeadscalePreAuthKeyReconciler) Reconcile(ctx context.Context, req ctrl.
 	}
 
 	// Get the referenced Headscale instance
-	headscale := &headscalev1beta1.Headscale{}
+	headscale := &headscalev1beta2.Headscale{}
 	err = r.Get(ctx, types.NamespacedName{
 		Name:      preAuthKey.Spec.HeadscaleRef,
 		Namespace: preAuthKey.Namespace,
@@ -155,7 +155,7 @@ func (r *HeadscalePreAuthKeyReconciler) Reconcile(ctx context.Context, req ctrl.
 // true, the caller should return immediately with the supplied result.
 func (r *HeadscalePreAuthKeyReconciler) resolveUserID(
 	ctx context.Context,
-	preAuthKey *headscalev1beta1.HeadscalePreAuthKey,
+	preAuthKey *headscalev1beta2.HeadscalePreAuthKey,
 ) (userID uint64, result ctrl.Result, done bool, err error) {
 	log := logf.FromContext(ctx)
 
@@ -189,7 +189,7 @@ func (r *HeadscalePreAuthKeyReconciler) resolveUserID(
 		return preAuthKey.Spec.UserID, ctrl.Result{}, false, nil
 	}
 
-	headscaleUser := &headscalev1beta1.HeadscaleUser{}
+	headscaleUser := &headscalev1beta2.HeadscaleUser{}
 	if err := r.Get(ctx, types.NamespacedName{
 		Name:      preAuthKey.Spec.HeadscaleUserRef,
 		Namespace: preAuthKey.Namespace,
@@ -248,13 +248,13 @@ func (r *HeadscalePreAuthKeyReconciler) resolveUserID(
 // handleDeletion handles the deletion of a HeadscalePreAuthKey instance
 func (r *HeadscalePreAuthKeyReconciler) handleDeletion(
 	ctx context.Context,
-	preAuthKey *headscalev1beta1.HeadscalePreAuthKey,
+	preAuthKey *headscalev1beta2.HeadscalePreAuthKey,
 ) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
 	if controllerutil.ContainsFinalizer(preAuthKey, headscalePreAuthKeyFinalizer) {
 		// Get the referenced Headscale instance
-		headscale := &headscalev1beta1.Headscale{}
+		headscale := &headscalev1beta2.Headscale{}
 		err := r.Get(ctx, types.NamespacedName{
 			Name:      preAuthKey.Spec.HeadscaleRef,
 			Namespace: preAuthKey.Namespace,
@@ -314,7 +314,7 @@ func (r *HeadscalePreAuthKeyReconciler) handleDeletion(
 // ensureFinalizer ensures the finalizer is present on the HeadscalePreAuthKey instance
 func (r *HeadscalePreAuthKeyReconciler) ensureFinalizer(
 	ctx context.Context,
-	preAuthKey *headscalev1beta1.HeadscalePreAuthKey,
+	preAuthKey *headscalev1beta2.HeadscalePreAuthKey,
 ) error {
 	if !controllerutil.ContainsFinalizer(preAuthKey, headscalePreAuthKeyFinalizer) {
 		controllerutil.AddFinalizer(preAuthKey, headscalePreAuthKeyFinalizer)
@@ -328,8 +328,8 @@ func (r *HeadscalePreAuthKeyReconciler) ensureFinalizer(
 // Uses blockOwnerDeletion to ensure PreAuthKey finalizer runs before HeadscaleUser is fully deleted
 func (r *HeadscalePreAuthKeyReconciler) ensureHeadscaleUserOwnerReference(
 	ctx context.Context,
-	preAuthKey *headscalev1beta1.HeadscalePreAuthKey,
-	headscaleUser *headscalev1beta1.HeadscaleUser,
+	preAuthKey *headscalev1beta2.HeadscalePreAuthKey,
+	headscaleUser *headscalev1beta2.HeadscaleUser,
 ) error {
 	// Check if owner reference already exists
 	for _, ref := range preAuthKey.GetOwnerReferences() {
@@ -362,9 +362,9 @@ func (r *HeadscalePreAuthKeyReconciler) ensureHeadscaleUserOwnerReference(
 // createPreAuthKey creates a preauth key in the Headscale instance and stores it in a secret
 func (r *HeadscalePreAuthKeyReconciler) createPreAuthKey(
 	ctx context.Context,
-	headscale *headscalev1beta1.Headscale,
+	headscale *headscalev1beta2.Headscale,
 	userID uint64,
-	preAuthKey *headscalev1beta1.HeadscalePreAuthKey,
+	preAuthKey *headscalev1beta2.HeadscalePreAuthKey,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -470,7 +470,7 @@ func (r *HeadscalePreAuthKeyReconciler) createPreAuthKey(
 // deletePreAuthKey deletes a preauth key in the Headscale instance
 func (r *HeadscalePreAuthKeyReconciler) deletePreAuthKey(
 	ctx context.Context,
-	headscale *headscalev1beta1.Headscale,
+	headscale *headscalev1beta2.Headscale,
 	id uint64,
 ) error {
 	log := logf.FromContext(ctx)
@@ -522,7 +522,7 @@ func isPreAuthKeyNotFoundError(err error) bool {
 // deleteSecret deletes the secret containing the preauth key
 func (r *HeadscalePreAuthKeyReconciler) deleteSecret(
 	ctx context.Context,
-	preAuthKey *headscalev1beta1.HeadscalePreAuthKey,
+	preAuthKey *headscalev1beta2.HeadscalePreAuthKey,
 ) error {
 	// Determine the secret name
 	secretName := preAuthKey.Spec.SecretName
@@ -548,7 +548,7 @@ func (r *HeadscalePreAuthKeyReconciler) deleteSecret(
 // updateStatusCondition updates the status condition of the HeadscalePreAuthKey
 func (r *HeadscalePreAuthKeyReconciler) updateStatusCondition(
 	ctx context.Context,
-	preAuthKey *headscalev1beta1.HeadscalePreAuthKey,
+	preAuthKey *headscalev1beta2.HeadscalePreAuthKey,
 	condition metav1.Condition,
 ) error {
 	patch := client.MergeFrom(preAuthKey.DeepCopy())
@@ -564,7 +564,7 @@ func (r *HeadscalePreAuthKeyReconciler) updateStatusCondition(
 // SetupWithManager sets up the controller with the Manager.
 func (r *HeadscalePreAuthKeyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&headscalev1beta1.HeadscalePreAuthKey{}).
+		For(&headscalev1beta2.HeadscalePreAuthKey{}).
 		Named("headscalepreauthkey").
 		Complete(r)
 }

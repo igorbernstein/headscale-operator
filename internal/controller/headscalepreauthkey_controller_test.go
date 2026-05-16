@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	headscalev1beta1 "github.com/infradohq/headscale-operator/api/v1beta1"
+	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 )
 
 var _ = Describe("HeadscalePreAuthKey Controller", func() {
@@ -52,28 +52,28 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 		// Helper function to create a test Headscale instance
 		createHeadscaleInstance := func() {
 			By("Creating the Headscale instance")
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      headscaleName,
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:         "https://headscale.example.com",
 						GRPCListenAddr:    "0.0.0.0:50443",
 						MetricsListenAddr: "0.0.0.0:9090",
 					},
-					PersistentVolumeClaim: headscalev1beta1.PersistentVolumeClaimConfig{
+					PersistentVolumeClaim: headscalev1beta2.PersistentVolumeClaimConfig{
 						Size: resource.NewQuantity(128*1024*1024, resource.BinarySI),
 					},
-					APIKey: headscalev1beta1.APIKeyConfig{
+					APIKey: headscalev1beta2.APIKeyConfig{
 						SecretName: "test-api-key-secret-pak",
 					},
 				},
 			}
-			err := k8sClient.Get(ctx, headscaleNamespacedName, &headscalev1beta1.Headscale{})
+			err := k8sClient.Get(ctx, headscaleNamespacedName, &headscalev1beta2.Headscale{})
 			if errors.IsNotFound(err) {
 				Expect(k8sClient.Create(ctx, headscale)).To(Succeed())
 			}
@@ -104,17 +104,17 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 		// Helper function to create a test HeadscaleUser instance
 		createHeadscaleUser := func() {
 			By("Creating the HeadscaleUser instance")
-			user := &headscalev1beta1.HeadscaleUser{
+			user := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      headscaleUserName,
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: headscaleName,
 					Username:     "testuser",
 				},
 			}
-			err := k8sClient.Get(ctx, headscaleUserNamespacedName, &headscalev1beta1.HeadscaleUser{})
+			err := k8sClient.Get(ctx, headscaleUserNamespacedName, &headscalev1beta2.HeadscaleUser{})
 			if errors.IsNotFound(err) {
 				Expect(k8sClient.Create(ctx, user)).To(Succeed())
 			}
@@ -134,21 +134,21 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 		// Common cleanup function
 		cleanupResources := func() {
 			By("Cleaning up the HeadscalePreAuthKey resource")
-			resource := &headscalev1beta1.HeadscalePreAuthKey{}
+			resource := &headscalev1beta2.HeadscalePreAuthKey{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			if err == nil {
 				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 			}
 
 			By("Cleaning up the HeadscaleUser resource")
-			user := &headscalev1beta1.HeadscaleUser{}
+			user := &headscalev1beta2.HeadscaleUser{}
 			err = k8sClient.Get(ctx, headscaleUserNamespacedName, user)
 			if err == nil {
 				Expect(k8sClient.Delete(ctx, user)).To(Succeed())
 			}
 
 			By("Cleaning up the Headscale resource")
-			headscale := &headscalev1beta1.Headscale{}
+			headscale := &headscalev1beta2.Headscale{}
 			err = k8sClient.Get(ctx, headscaleNamespacedName, headscale)
 			if err == nil {
 				Expect(k8sClient.Delete(ctx, headscale)).To(Succeed())
@@ -178,12 +178,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should successfully create and reconcile a HeadscalePreAuthKey with HeadscaleUserRef", func() {
 			By("Creating the HeadscalePreAuthKey resource with HeadscaleUserRef")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName,
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef:     headscaleName,
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
@@ -195,7 +195,7 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 			Expect(k8sClient.Create(ctx, preAuthKey)).To(Succeed())
 
 			By("Checking that the HeadscalePreAuthKey was created")
-			createdKey := &headscalev1beta1.HeadscalePreAuthKey{}
+			createdKey := &headscalev1beta2.HeadscalePreAuthKey{}
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, typeNamespacedName, createdKey)
 				return err == nil
@@ -238,12 +238,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should successfully create and reconcile a HeadscalePreAuthKey with UserID", func() {
 			By("Creating the HeadscalePreAuthKey resource with direct UserID")
-			preAuthKeyDirectID := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKeyDirectID := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-userid",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef: headscaleName,
 					UserID:       123,
 					Expiration:   "2h",
@@ -284,12 +284,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should handle missing Headscale reference", func() {
 			By("Creating a HeadscalePreAuthKey with non-existent Headscale reference")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-missing-hs",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef:     "non-existent-headscale",
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
@@ -336,12 +336,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should handle missing HeadscaleUser reference", func() {
 			By("Creating a HeadscalePreAuthKey with non-existent HeadscaleUser reference")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-missing-user",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef:     headscaleName,
 					HeadscaleUserRef: "non-existent-user",
 					Expiration:       "1h",
@@ -388,12 +388,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should handle HeadscaleUser not ready (UserID not set)", func() {
 			By("Creating a HeadscaleUser without UserID")
-			userNotReady := &headscalev1beta1.HeadscaleUser{
+			userNotReady := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "user-not-ready",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: headscaleName,
 					Username:     "notreadyuser",
 				},
@@ -401,12 +401,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 			Expect(k8sClient.Create(ctx, userNotReady)).To(Succeed())
 
 			By("Creating a HeadscalePreAuthKey referencing the not-ready user")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-user-not-ready",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef:     headscaleName,
 					HeadscaleUserRef: "user-not-ready",
 					Expiration:       "1h",
@@ -454,12 +454,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should preserve LastTransitionTime when reason changes but status stays the same", func() {
 			By("Creating a HeadscalePreAuthKey referencing a non-existent user")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-ltt",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef:     headscaleName,
 					HeadscaleUserRef: "user-ltt-not-ready",
 					Expiration:       "1h",
@@ -503,12 +503,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 			Expect(initialTransitionTime.IsZero()).To(BeFalse())
 
 			By("Creating the user without UserID (not ready)")
-			userLtt := &headscalev1beta1.HeadscaleUser{
+			userLtt := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "user-ltt-not-ready",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: headscaleName,
 					Username:     "lttnotreadyuser",
 				},
@@ -557,12 +557,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should reject spec with neither user reference nor tags", func() {
 			By("Attempting to create a HeadscalePreAuthKey without HeadscaleUserRef, UserID, or Tags")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-no-user",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef: headscaleName,
 					Expiration:   "1h",
 				},
@@ -576,12 +576,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should reject spec with both HeadscaleUserRef and UserID", func() {
 			By("Attempting to create a HeadscalePreAuthKey with both HeadscaleUserRef and UserID")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-both-user",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef:     headscaleName,
 					HeadscaleUserRef: headscaleUserName,
 					UserID:           456,
@@ -597,12 +597,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should accept and reconcile a tags-only HeadscalePreAuthKey (no user)", func() {
 			By("Creating a HeadscalePreAuthKey with tags but no user reference")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-tags-only",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef: headscaleName,
 					Expiration:   "1h",
 					Tags:         []string{"tag:ci"},
@@ -647,12 +647,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should handle deletion with finalizer", func() {
 			By("Creating a HeadscalePreAuthKey")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-deletion",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef:     headscaleName,
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
@@ -697,13 +697,13 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should handle deletion with KeyID in status when Headscale instance is missing", func() {
 			By("Creating a HeadscalePreAuthKey with a non-existent Headscale reference")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       resourceName + "-deletion-keyid",
 					Namespace:  namespace,
 					Finalizers: []string{headscalePreAuthKeyFinalizer},
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef:     "non-existent-headscale",
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
@@ -750,12 +750,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 		It("should create secret with custom name when SecretName is specified", func() {
 			By("Creating a HeadscalePreAuthKey with custom SecretName")
 			customSecretName := "custom-secret-name"
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-custom-secret",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef:     headscaleName,
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",
@@ -811,12 +811,12 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 
 		It("should not requeue if PreAuthKey already exists (Status.KeyID is set)", func() {
 			By("Creating a HeadscalePreAuthKey")
-			preAuthKey := &headscalev1beta1.HeadscalePreAuthKey{
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-existing",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscalePreAuthKeySpec{
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
 					HeadscaleRef:     headscaleName,
 					HeadscaleUserRef: headscaleUserName,
 					Expiration:       "1h",

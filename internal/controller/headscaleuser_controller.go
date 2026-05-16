@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	headscalev1beta1 "github.com/infradohq/headscale-operator/api/v1beta1"
+	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 	hsclient "github.com/infradohq/headscale-operator/pkg/headscale"
 )
 
@@ -43,7 +43,7 @@ func (r *HeadscaleUserReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log := logf.FromContext(ctx)
 
 	// Fetch the HeadscaleUser instance
-	headscaleUser := &headscalev1beta1.HeadscaleUser{}
+	headscaleUser := &headscalev1beta2.HeadscaleUser{}
 	err := r.Get(ctx, req.NamespacedName, headscaleUser)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -65,7 +65,7 @@ func (r *HeadscaleUserReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Get the referenced Headscale instance
-	headscale := &headscalev1beta1.Headscale{}
+	headscale := &headscalev1beta2.Headscale{}
 	err = r.Get(ctx, types.NamespacedName{
 		Name:      headscaleUser.Spec.HeadscaleRef,
 		Namespace: headscaleUser.Namespace,
@@ -157,12 +157,12 @@ func (r *HeadscaleUserReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 // handleDeletion handles the deletion of a HeadscaleUser instance
-func (r *HeadscaleUserReconciler) handleDeletion(ctx context.Context, headscaleUser *headscalev1beta1.HeadscaleUser) (ctrl.Result, error) {
+func (r *HeadscaleUserReconciler) handleDeletion(ctx context.Context, headscaleUser *headscalev1beta2.HeadscaleUser) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
 	if controllerutil.ContainsFinalizer(headscaleUser, headscaleUserFinalizer) {
 		// Get the referenced Headscale instance
-		headscale := &headscalev1beta1.Headscale{}
+		headscale := &headscalev1beta2.Headscale{}
 		err := r.Get(ctx, types.NamespacedName{
 			Name:      headscaleUser.Spec.HeadscaleRef,
 			Namespace: headscaleUser.Namespace,
@@ -201,7 +201,7 @@ func (r *HeadscaleUserReconciler) handleDeletion(ctx context.Context, headscaleU
 }
 
 // ensureFinalizer ensures the finalizer is present on the HeadscaleUser instance
-func (r *HeadscaleUserReconciler) ensureFinalizer(ctx context.Context, headscaleUser *headscalev1beta1.HeadscaleUser) error {
+func (r *HeadscaleUserReconciler) ensureFinalizer(ctx context.Context, headscaleUser *headscalev1beta2.HeadscaleUser) error {
 	if !controllerutil.ContainsFinalizer(headscaleUser, headscaleUserFinalizer) {
 		controllerutil.AddFinalizer(headscaleUser, headscaleUserFinalizer)
 		return r.Update(ctx, headscaleUser)
@@ -210,7 +210,7 @@ func (r *HeadscaleUserReconciler) ensureFinalizer(ctx context.Context, headscale
 }
 
 // createUser creates a user in the Headscale instance
-func (r *HeadscaleUserReconciler) createUser(ctx context.Context, headscale *headscalev1beta1.Headscale, headscaleUser *headscalev1beta1.HeadscaleUser) error {
+func (r *HeadscaleUserReconciler) createUser(ctx context.Context, headscale *headscalev1beta2.Headscale, headscaleUser *headscalev1beta2.HeadscaleUser) error {
 	log := logf.FromContext(ctx)
 
 	// Get the API key from the secret
@@ -255,7 +255,7 @@ func (r *HeadscaleUserReconciler) createUser(ctx context.Context, headscale *hea
 }
 
 // deleteUser deletes a user from the Headscale instance
-func (r *HeadscaleUserReconciler) deleteUser(ctx context.Context, headscale *headscalev1beta1.Headscale, headscaleUser *headscalev1beta1.HeadscaleUser) error {
+func (r *HeadscaleUserReconciler) deleteUser(ctx context.Context, headscale *headscalev1beta2.Headscale, headscaleUser *headscalev1beta2.HeadscaleUser) error {
 	log := logf.FromContext(ctx)
 
 	// Parse UserID
@@ -294,7 +294,7 @@ func (r *HeadscaleUserReconciler) deleteUser(ctx context.Context, headscale *hea
 }
 
 // verifyUser verifies that the user still exists in Headscale
-func (r *HeadscaleUserReconciler) verifyUser(ctx context.Context, headscale *headscalev1beta1.Headscale, headscaleUser *headscalev1beta1.HeadscaleUser) error {
+func (r *HeadscaleUserReconciler) verifyUser(ctx context.Context, headscale *headscalev1beta2.Headscale, headscaleUser *headscalev1beta2.HeadscaleUser) error {
 	log := logf.FromContext(ctx)
 
 	// Get the API key from the secret
@@ -327,7 +327,7 @@ func (r *HeadscaleUserReconciler) verifyUser(ctx context.Context, headscale *hea
 }
 
 // updateStatusCondition updates the status condition of the HeadscaleUser
-func (r *HeadscaleUserReconciler) updateStatusCondition(ctx context.Context, headscaleUser *headscalev1beta1.HeadscaleUser, condition metav1.Condition) error {
+func (r *HeadscaleUserReconciler) updateStatusCondition(ctx context.Context, headscaleUser *headscalev1beta2.HeadscaleUser, condition metav1.Condition) error {
 	patch := client.MergeFrom(headscaleUser.DeepCopy())
 
 	condition.ObservedGeneration = headscaleUser.Generation
@@ -341,7 +341,7 @@ func (r *HeadscaleUserReconciler) updateStatusCondition(ctx context.Context, hea
 // SetupWithManager sets up the controller with the Manager.
 func (r *HeadscaleUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&headscalev1beta1.HeadscaleUser{}).
+		For(&headscalev1beta2.HeadscaleUser{}).
 		Named("headscaleuser").
 		Complete(r)
 }

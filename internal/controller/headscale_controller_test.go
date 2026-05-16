@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
-	headscalev1beta1 "github.com/infradohq/headscale-operator/api/v1beta1"
+	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 )
 
 var _ = Describe("Headscale Controller", func() {
@@ -47,7 +47,7 @@ var _ = Describe("Headscale Controller", func() {
 					Namespace: namespace,
 				}
 
-				headscale := &headscalev1beta1.Headscale{}
+				headscale := &headscalev1beta2.Headscale{}
 				err := k8sClient.Get(ctx, resourceNSName, headscale)
 				if err == nil {
 					_ = k8sClient.Delete(ctx, headscale)
@@ -72,24 +72,24 @@ var _ = Describe("Headscale Controller", func() {
 
 		It("should successfully create and reconcile a Headscale instance", func() {
 			By("Creating the Headscale resource")
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName,
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:         "https://headscale.example.com",
 						ListenAddr:        "0.0.0.0:8080",
 						GRPCListenAddr:    "0.0.0.0:50443",
 						MetricsListenAddr: "0.0.0.0:9090",
 					},
-					PersistentVolumeClaim: headscalev1beta1.PersistentVolumeClaimConfig{
+					PersistentVolumeClaim: headscalev1beta2.PersistentVolumeClaimConfig{
 						Size: resource.NewQuantity(128*1024*1024, resource.BinarySI),
 					},
-					APIKey: headscalev1beta1.APIKeyConfig{
+					APIKey: headscalev1beta2.APIKeyConfig{
 						SecretName: "test-api-key",
 					},
 				},
@@ -97,7 +97,7 @@ var _ = Describe("Headscale Controller", func() {
 			Expect(k8sClient.Create(ctx, headscale)).To(Succeed())
 
 			By("Checking that the Headscale was created")
-			createdHeadscale := &headscalev1beta1.Headscale{}
+			createdHeadscale := &headscalev1beta2.Headscale{}
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, typeNamespacedName, createdHeadscale)
 				return err == nil
@@ -213,19 +213,19 @@ var _ = Describe("Headscale Controller", func() {
 		It("should create StatefulSet with API key manager sidecar when AutoManage is true", func() {
 			By("Creating the Headscale resource with AutoManage enabled")
 			autoManage := true
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-automanage",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:  "https://headscale.example.com",
 						ListenAddr: "0.0.0.0:8080",
 					},
-					APIKey: headscalev1beta1.APIKeyConfig{
+					APIKey: headscalev1beta2.APIKeyConfig{
 						AutoManage: &autoManage,
 						SecretName: "test-api-key-automanage",
 					},
@@ -274,19 +274,19 @@ var _ = Describe("Headscale Controller", func() {
 		It("should not create RBAC resources when AutoManage is false", func() {
 			By("Creating the Headscale resource with AutoManage disabled")
 			autoManage := false
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-no-automanage",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:  "https://headscale.example.com",
 						ListenAddr: "0.0.0.0:8080",
 					},
-					APIKey: headscalev1beta1.APIKeyConfig{
+					APIKey: headscalev1beta2.APIKeyConfig{
 						AutoManage: &autoManage,
 						SecretName: "test-api-key-no-automanage",
 					},
@@ -334,15 +334,15 @@ var _ = Describe("Headscale Controller", func() {
 
 		It("should update ConfigMap when config changes", func() {
 			By("Creating the Headscale resource")
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-update",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:  "https://headscale.example.com",
 						ListenAddr: "0.0.0.0:8080",
 					},
@@ -412,15 +412,15 @@ var _ = Describe("Headscale Controller", func() {
 
 		It("should handle deletion with finalizer", func() {
 			By("Creating the Headscale resource")
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-deletion",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:  "https://headscale.example.com",
 						ListenAddr: "0.0.0.0:8080",
 					},
@@ -483,15 +483,15 @@ var _ = Describe("Headscale Controller", func() {
 
 		It("should set correct replicas in StatefulSet", func() {
 			By("Creating the Headscale resource with custom replicas")
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-replicas",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 3,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:  "https://headscale.example.com",
 						ListenAddr: "0.0.0.0:8080",
 					},
@@ -535,19 +535,19 @@ var _ = Describe("Headscale Controller", func() {
 		It("should set correct PVC size in StatefulSet", func() {
 			By("Creating the Headscale resource with custom PVC size")
 			customSize := resource.NewQuantity(256*1024*1024, resource.BinarySI)
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-pvc",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:  "https://headscale.example.com",
 						ListenAddr: "0.0.0.0:8080",
 					},
-					PersistentVolumeClaim: headscalev1beta1.PersistentVolumeClaimConfig{
+					PersistentVolumeClaim: headscalev1beta2.PersistentVolumeClaimConfig{
 						Size: customSize,
 					},
 				},
@@ -593,15 +593,15 @@ var _ = Describe("Headscale Controller", func() {
 
 		It("should set correct security context in StatefulSet", func() {
 			By("Creating the Headscale resource")
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-security",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:  "https://headscale.example.com",
 						ListenAddr: "0.0.0.0:8080",
 					},
@@ -673,15 +673,15 @@ var _ = Describe("Headscale Controller", func() {
 
 		It("should include extra env, volumes, and volume mounts in StatefulSet", func() {
 			By("Creating the Headscale resource with extras")
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-extras",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:  "https://headscale.example.com",
 						ListenAddr: "0.0.0.0:8080",
 					},
@@ -776,11 +776,11 @@ var _ = Describe("Headscale Controller", func() {
 	Context("Helper function tests", func() {
 		It("should compute config hash correctly", func() {
 			By("Testing computeConfigHashFromSpec with same config")
-			config1 := &headscalev1beta1.HeadscaleConfig{
+			config1 := &headscalev1beta2.HeadscaleConfig{
 				ServerURL:  "https://example.com",
 				ListenAddr: "0.0.0.0:8080",
 			}
-			config2 := &headscalev1beta1.HeadscaleConfig{
+			config2 := &headscalev1beta2.HeadscaleConfig{
 				ServerURL:  "https://example.com",
 				ListenAddr: "0.0.0.0:8080",
 			}
@@ -789,7 +789,7 @@ var _ = Describe("Headscale Controller", func() {
 			Expect(hash1).To(Equal(hash2))
 
 			By("Testing computeConfigHashFromSpec with different config")
-			config3 := &headscalev1beta1.HeadscaleConfig{
+			config3 := &headscalev1beta2.HeadscaleConfig{
 				ServerURL:  "https://different.com",
 				ListenAddr: "0.0.0.0:8080",
 			}
@@ -821,10 +821,10 @@ var _ = Describe("Headscale Controller", func() {
 
 		It("should preserve empty DERP URLs in marshaled config", func() {
 			By("Creating a config with explicitly empty DERP URLs")
-			config := &headscalev1beta1.HeadscaleConfig{
+			config := &headscalev1beta2.HeadscaleConfig{
 				ServerURL:  "https://headscale.example.com",
 				ListenAddr: "0.0.0.0:8080",
-				DERP: headscalev1beta1.DERPConfig{
+				DERP: headscalev1beta2.DERPConfig{
 					URLs:  []string{},
 					Paths: []string{"/etc/derp/derp.yaml"},
 				},
@@ -846,10 +846,10 @@ var _ = Describe("Headscale Controller", func() {
 
 		It("should omit DERP URLs when left nil to allow CRD defaults", func() {
 			By("Creating a config with nil DERP URLs")
-			config := &headscalev1beta1.HeadscaleConfig{
+			config := &headscalev1beta2.HeadscaleConfig{
 				ServerURL:  "https://headscale.example.com",
 				ListenAddr: "0.0.0.0:8080",
-				DERP: headscalev1beta1.DERPConfig{
+				DERP: headscalev1beta2.DERPConfig{
 					Paths: []string{"/etc/derp/derp.yaml"},
 				},
 			}
@@ -884,19 +884,19 @@ var _ = Describe("Headscale Controller", func() {
 			}
 
 			By("Creating the Headscale resource with an invalid inline policy")
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      badPolicyName.Name,
 					Namespace: badPolicyName.Namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:  "https://headscale.example.com",
 						ListenAddr: "0.0.0.0:8080",
 					},
-					ACLPolicy: headscalev1beta1.ACLPolicyConfig{
+					ACLPolicy: headscalev1beta2.ACLPolicyConfig{
 						// Missing quotes around object keys — the exact failure mode from issue #75.
 						Inline: `{ acls: [ { action: "accept", src: ["*"], dst: ["*:*"] } ] }`,
 					},
@@ -916,7 +916,7 @@ var _ = Describe("Headscale Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Verifying PolicyValid condition is False with InvalidPolicy reason")
-			updated := &headscalev1beta1.Headscale{}
+			updated := &headscalev1beta2.Headscale{}
 			Eventually(func() bool {
 				if err := k8sClient.Get(ctx, badPolicyName, updated); err != nil {
 					return false
@@ -936,7 +936,7 @@ var _ = Describe("Headscale Controller", func() {
 
 var _ = Describe("validateACLPolicy", func() {
 	It("returns PolicyValid=True when inline is empty", func() {
-		h := &headscalev1beta1.Headscale{}
+		h := &headscalev1beta2.Headscale{}
 		cond := validateACLPolicy(h)
 		Expect(cond.Type).To(Equal("PolicyValid"))
 		Expect(cond.Status).To(Equal(metav1.ConditionTrue))
@@ -944,9 +944,9 @@ var _ = Describe("validateACLPolicy", func() {
 	})
 
 	It("returns PolicyValid=True for valid HuJSON", func() {
-		h := &headscalev1beta1.Headscale{
-			Spec: headscalev1beta1.HeadscaleSpec{
-				ACLPolicy: headscalev1beta1.ACLPolicyConfig{
+		h := &headscalev1beta2.Headscale{
+			Spec: headscalev1beta2.HeadscaleSpec{
+				ACLPolicy: headscalev1beta2.ACLPolicyConfig{
 					Inline: `{
 						// trailing-comma-friendly HuJSON is acceptable
 						"acls": [{"action": "accept", "src": ["*"], "dst": ["*:*"]},],
@@ -958,9 +958,9 @@ var _ = Describe("validateACLPolicy", func() {
 	})
 
 	It("returns PolicyValid=False with InvalidPolicy reason for malformed inline", func() {
-		h := &headscalev1beta1.Headscale{
-			Spec: headscalev1beta1.HeadscaleSpec{
-				ACLPolicy: headscalev1beta1.ACLPolicyConfig{
+		h := &headscalev1beta2.Headscale{
+			Spec: headscalev1beta2.HeadscaleSpec{
+				ACLPolicy: headscalev1beta2.ACLPolicyConfig{
 					Inline: `{ acls: not-a-policy }`,
 				},
 			},

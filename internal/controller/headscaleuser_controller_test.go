@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	headscalev1beta1 "github.com/infradohq/headscale-operator/api/v1beta1"
+	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 )
 
 var _ = Describe("HeadscaleUser Controller", func() {
@@ -43,28 +43,28 @@ var _ = Describe("HeadscaleUser Controller", func() {
 
 		BeforeEach(func() {
 			By("Creating the Headscale instance")
-			headscale := &headscalev1beta1.Headscale{
+			headscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      headscaleName,
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:         "https://headscale.example.com",
 						GRPCListenAddr:    "0.0.0.0:50443",
 						MetricsListenAddr: "0.0.0.0:9090",
 					},
-					PersistentVolumeClaim: headscalev1beta1.PersistentVolumeClaimConfig{
+					PersistentVolumeClaim: headscalev1beta2.PersistentVolumeClaimConfig{
 						Size: resource.NewQuantity(128*1024*1024, resource.BinarySI),
 					},
-					APIKey: headscalev1beta1.APIKeyConfig{
+					APIKey: headscalev1beta2.APIKeyConfig{
 						SecretName: "test-api-key-secret",
 					},
 				},
 			}
-			err := k8sClient.Get(ctx, headscaleNamespacedName, &headscalev1beta1.Headscale{})
+			err := k8sClient.Get(ctx, headscaleNamespacedName, &headscalev1beta2.Headscale{})
 			if errors.IsNotFound(err) {
 				Expect(k8sClient.Create(ctx, headscale)).To(Succeed())
 			}
@@ -91,14 +91,14 @@ var _ = Describe("HeadscaleUser Controller", func() {
 
 		AfterEach(func() {
 			By("Cleaning up the HeadscaleUser resource")
-			resource := &headscalev1beta1.HeadscaleUser{}
+			resource := &headscalev1beta2.HeadscaleUser{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			if err == nil {
 				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 			}
 
 			By("Cleaning up the Headscale resource")
-			headscale := &headscalev1beta1.Headscale{}
+			headscale := &headscalev1beta2.Headscale{}
 			err = k8sClient.Get(ctx, headscaleNamespacedName, headscale)
 			if err == nil {
 				Expect(k8sClient.Delete(ctx, headscale)).To(Succeed())
@@ -118,12 +118,12 @@ var _ = Describe("HeadscaleUser Controller", func() {
 
 		It("should successfully create and reconcile a HeadscaleUser", func() {
 			By("Creating the HeadscaleUser resource")
-			headscaleUser := &headscalev1beta1.HeadscaleUser{
+			headscaleUser := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName,
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: headscaleName,
 					Username:     "testuser",
 					DisplayName:  "Test User",
@@ -134,7 +134,7 @@ var _ = Describe("HeadscaleUser Controller", func() {
 			Expect(k8sClient.Create(ctx, headscaleUser)).To(Succeed())
 
 			By("Checking that the HeadscaleUser was created")
-			createdUser := &headscalev1beta1.HeadscaleUser{}
+			createdUser := &headscalev1beta2.HeadscaleUser{}
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, typeNamespacedName, createdUser)
 				return err == nil
@@ -163,12 +163,12 @@ var _ = Describe("HeadscaleUser Controller", func() {
 
 		It("should handle missing Headscale reference", func() {
 			By("Creating a HeadscaleUser with non-existent Headscale reference")
-			headscaleUser := &headscalev1beta1.HeadscaleUser{
+			headscaleUser := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-missing",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: "non-existent-headscale",
 					Username:     "testuser2",
 				},
@@ -214,12 +214,12 @@ var _ = Describe("HeadscaleUser Controller", func() {
 
 		It("should preserve LastTransitionTime when condition is unchanged on re-reconcile", func() {
 			By("Creating a HeadscaleUser with non-existent Headscale reference")
-			headscaleUser := &headscalev1beta1.HeadscaleUser{
+			headscaleUser := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-ltt",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: "non-existent-headscale-ltt",
 					Username:     "lttuser",
 				},
@@ -287,12 +287,12 @@ var _ = Describe("HeadscaleUser Controller", func() {
 
 		It("should validate immutable fields", func() {
 			By("Creating a HeadscaleUser")
-			headscaleUser := &headscalev1beta1.HeadscaleUser{
+			headscaleUser := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-immutable",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: headscaleName,
 					Username:     "immutableuser",
 					DisplayName:  "Original Name",
@@ -325,12 +325,12 @@ var _ = Describe("HeadscaleUser Controller", func() {
 
 		It("should handle deletion with finalizer", func() {
 			By("Creating a HeadscaleUser")
-			headscaleUser := &headscalev1beta1.HeadscaleUser{
+			headscaleUser := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-deletion",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: headscaleName,
 					Username:     "deleteuser",
 				},
@@ -393,15 +393,15 @@ var _ = Describe("HeadscaleUser Controller", func() {
 		It("should handle deletion when Headscale is not found", func() {
 			By("Creating a HeadscaleUser with a Headscale reference")
 			tempHeadscaleName := "temp-headscale-for-deletion"
-			tempHeadscale := &headscalev1beta1.Headscale{
+			tempHeadscale := &headscalev1beta2.Headscale{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      tempHeadscaleName,
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleSpec{
+				Spec: headscalev1beta2.HeadscaleSpec{
 					Version:  "v0.28.0",
 					Replicas: 1,
-					Config: headscalev1beta1.HeadscaleConfig{
+					Config: headscalev1beta2.HeadscaleConfig{
 						ServerURL:  "https://temp.example.com",
 						ListenAddr: "0.0.0.0:8080",
 					},
@@ -409,12 +409,12 @@ var _ = Describe("HeadscaleUser Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, tempHeadscale)).To(Succeed())
 
-			headscaleUser := &headscalev1beta1.HeadscaleUser{
+			headscaleUser := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-orphaned",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: tempHeadscaleName,
 					Username:     "orphaneduser",
 				},
@@ -459,12 +459,12 @@ var _ = Describe("HeadscaleUser Controller", func() {
 
 		It("should set status conditions correctly during user creation", func() {
 			By("Creating the HeadscaleUser resource")
-			headscaleUser := &headscalev1beta1.HeadscaleUser{
+			headscaleUser := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-conditions",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: headscaleName,
 					Username:     "conditionsuser",
 				},
@@ -502,12 +502,12 @@ var _ = Describe("HeadscaleUser Controller", func() {
 
 		It("should validate required username field", func() {
 			By("Creating a HeadscaleUser without username should fail")
-			headscaleUser := &headscalev1beta1.HeadscaleUser{
+			headscaleUser := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-no-username",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: headscaleName,
 					// Username is missing
 				},
@@ -518,12 +518,12 @@ var _ = Describe("HeadscaleUser Controller", func() {
 
 		It("should handle multiple HeadscaleUsers for the same Headscale", func() {
 			By("Creating first HeadscaleUser")
-			user1 := &headscalev1beta1.HeadscaleUser{
+			user1 := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-multi1",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: headscaleName,
 					Username:     "multiuser1",
 				},
@@ -531,12 +531,12 @@ var _ = Describe("HeadscaleUser Controller", func() {
 			Expect(k8sClient.Create(ctx, user1)).To(Succeed())
 
 			By("Creating second HeadscaleUser")
-			user2 := &headscalev1beta1.HeadscaleUser{
+			user2 := &headscalev1beta2.HeadscaleUser{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName + "-multi2",
 					Namespace: namespace,
 				},
-				Spec: headscalev1beta1.HeadscaleUserSpec{
+				Spec: headscalev1beta2.HeadscaleUserSpec{
 					HeadscaleRef: headscaleName,
 					Username:     "multiuser2",
 				},
