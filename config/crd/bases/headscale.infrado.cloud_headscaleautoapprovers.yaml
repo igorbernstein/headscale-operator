@@ -67,9 +67,13 @@ spec:
                 properties:
                   kind:
                     default: Headscale
-                    description: Kind is the kind of the referenced Headscale instance.
+                    description: |-
+                      Kind is the kind of the referenced Headscale instance.
+                      Defaults to "Headscale" (namespace-scoped). Set to "ClusterHeadscale"
+                      to reference a cluster-scoped instance.
                     enum:
                     - Headscale
+                    - ClusterHeadscale
                     type: string
                   name:
                     description: Name is the name of the referenced Headscale instance.

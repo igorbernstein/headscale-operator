@@ -48,7 +48,7 @@ type HeadscaleAutoApproverReconciler struct {
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscaleautoapprovers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscaleautoapprovers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscaleautoapprovers/finalizers,verbs=update
-// +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscales,verbs=get;list;watch
+// +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscales;clusterheadscales,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get
 
 // Reconcile renders the merged ACL policy for the parent Headscale and pushes
@@ -93,14 +93,14 @@ func (r *HeadscaleAutoApproverReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, err
 	}
 
-	if headscale.Spec.Config.Policy.Mode != policyModeDatabase {
+	if headscale.GetHeadscaleSpec().Config.Policy.Mode != policyModeDatabase {
 		if err := r.setCondition(ctx, approver, metav1.Condition{
 			Type:   "Ready",
 			Status: metav1.ConditionFalse,
 			Reason: "PolicyModeUnsupported",
 			Message: fmt.Sprintf(
 				"Headscale %q has policy.mode=%q; HeadscaleAutoApprover requires policy.mode=%q",
-				headscale.Name, headscale.Spec.Config.Policy.Mode, policyModeDatabase,
+				headscale.GetName(), headscale.GetHeadscaleSpec().Config.Policy.Mode, policyModeDatabase,
 			),
 		}); err != nil {
 			return ctrl.Result{}, err
@@ -163,7 +163,7 @@ func (r *HeadscaleAutoApproverReconciler) handleDeletion(
 		// Parent already gone — nothing to re-push.
 	case err != nil:
 		log.Error(err, "Failed to fetch parent Headscale during deletion; proceeding with finalizer removal")
-	case headscale.Spec.Config.Policy.Mode == policyModeDatabase:
+	case headscale.GetHeadscaleSpec().Config.Policy.Mode == policyModeDatabase:
 		if err := r.renderAndPush(ctx, headscale); err != nil {
 			log.Error(err, "Failed to re-push policy during deletion; proceeding with finalizer removal")
 		}
@@ -190,7 +190,7 @@ func (r *HeadscaleAutoApproverReconciler) ensureFinalizer(
 func (r *HeadscaleAutoApproverReconciler) getHeadscale(
 	ctx context.Context,
 	approver *headscalev1beta2.HeadscaleAutoApprover,
-) (*headscalev1beta2.Headscale, error) {
+) (headscalev1beta2.HeadscaleObject, error) {
 	return getReferencedHeadscale(ctx, r.Client, approver.Spec.HeadscaleRef, approver.Namespace)
 }
 
@@ -199,7 +199,7 @@ func (r *HeadscaleAutoApproverReconciler) getHeadscale(
 // JSON document via SetPolicy.
 func (r *HeadscaleAutoApproverReconciler) renderAndPush(
 	ctx context.Context,
-	headscale *headscalev1beta2.Headscale,
+	headscale headscalev1beta2.HeadscaleObject,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -208,7 +208,7 @@ func (r *HeadscaleAutoApproverReconciler) renderAndPush(
 		return fmt.Errorf("failed to list auto-approvers: %w", err)
 	}
 
-	policy, err := buildPolicyDocument(&headscale.Spec.ACLPolicy, approvers)
+	policy, err := buildPolicyDocument(&headscale.GetHeadscaleSpec().ACLPolicy, approvers)
 	if err != nil {
 		return fmt.Errorf("failed to build policy document: %w", err)
 	}
@@ -231,21 +231,26 @@ func (r *HeadscaleAutoApproverReconciler) renderAndPush(
 	if err := hsClient.SetPolicy(ctx, policy); err != nil {
 		return err
 	}
-	log.Info("Pushed merged policy to Headscale", "Headscale", headscale.Name, "Approvers", len(approvers))
+	log.Info("Pushed merged policy to Headscale", "Headscale", headscale.GetName(), "Approvers", len(approvers))
 	return nil
 }
 
-// collectApprovers returns every HeadscaleAutoApprover in the same namespace as
-// the Headscale that targets it by name and is not being deleted. Uses the
-// spec.headscaleRef field index for server-side filtering.
+// collectApprovers returns every HeadscaleAutoApprover that targets headscale
+// and is not being deleted. Uses the spec.headscaleRef field index for
+// server-side filtering.
+//
+// For a namespaced Headscale, GetNamespace() scopes the list to the same
+// namespace. For a ClusterHeadscale, GetNamespace() returns "" which
+// client.InNamespace interprets as all namespaces — intentional, since a
+// ClusterHeadscale can be referenced from approvers in any namespace.
 func (r *HeadscaleAutoApproverReconciler) collectApprovers(
 	ctx context.Context,
-	headscale *headscalev1beta2.Headscale,
+	headscale headscalev1beta2.HeadscaleObject,
 ) ([]headscalev1beta2.HeadscaleAutoApprover, error) {
 	list := &headscalev1beta2.HeadscaleAutoApproverList{}
 	if err := r.List(ctx, list,
-		client.InNamespace(headscale.Namespace),
-		client.MatchingFields{headscaleRefIndex: headscale.Name},
+		client.InNamespace(headscale.GetNamespace()),
+		client.MatchingFields{headscaleRefIndex: headscaleRefIndexKey(headscale)},
 	); err != nil {
 		return nil, err
 	}
@@ -276,20 +281,21 @@ func (r *HeadscaleAutoApproverReconciler) setCondition(
 }
 
 // requeueApproversForHeadscale returns a handler.MapFunc that, when a Headscale
-// changes, enqueues every HeadscaleAutoApprover that targets it. This makes
-// edits to spec.acl_policy or spec.config.policy.mode trigger a re-render.
+// or ClusterHeadscale changes, enqueues every HeadscaleAutoApprover that
+// targets it. This makes edits to spec.acl_policy or spec.config.policy.mode
+// trigger a re-render.
 func (r *HeadscaleAutoApproverReconciler) requeueApproversForHeadscale(
 	ctx context.Context,
 	obj client.Object,
 ) []reconcile.Request {
-	headscale, ok := obj.(*headscalev1beta2.Headscale)
+	h, ok := obj.(headscalev1beta2.HeadscaleObject)
 	if !ok {
 		return nil
 	}
 	list := &headscalev1beta2.HeadscaleAutoApproverList{}
 	if err := r.List(ctx, list,
-		client.InNamespace(headscale.Namespace),
-		client.MatchingFields{headscaleRefIndex: headscale.Name},
+		client.InNamespace(obj.GetNamespace()),
+		client.MatchingFields{headscaleRefIndex: headscaleRefIndexKey(h)},
 	); err != nil {
 		logf.FromContext(ctx).Error(err, "Failed to list HeadscaleAutoApprovers for Headscale watch")
 		return nil
@@ -322,6 +328,18 @@ var reconcilableUpdates = predicate.Funcs{
 	},
 }
 
+// headscaleRefIndexKey returns the field index key for a headscalev1beta2.HeadscaleObject,
+// combining Kind and Name so that a ClusterHeadscale and a same-named Headscale
+// are never treated as the same target.
+func headscaleRefIndexKey(h headscalev1beta2.HeadscaleObject) string {
+	switch h.(type) {
+	case *headscalev1beta2.ClusterHeadscale:
+		return string(headscalev1beta2.HeadscaleKindCluster) + "/" + h.GetName()
+	default:
+		return string(headscalev1beta2.HeadscaleKindNamespaced) + "/" + h.GetName()
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *HeadscaleAutoApproverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
@@ -329,7 +347,12 @@ func (r *HeadscaleAutoApproverReconciler) SetupWithManager(mgr ctrl.Manager) err
 		&headscalev1beta2.HeadscaleAutoApprover{},
 		headscaleRefIndex,
 		func(obj client.Object) []string {
-			return []string{obj.(*headscalev1beta2.HeadscaleAutoApprover).Spec.HeadscaleRef.Name}
+			ref := obj.(*headscalev1beta2.HeadscaleAutoApprover).Spec.HeadscaleRef
+			kind := ref.Kind
+			if kind == "" {
+				kind = headscalev1beta2.HeadscaleKindNamespaced
+			}
+			return []string{string(kind) + "/" + ref.Name}
 		},
 	); err != nil {
 		return fmt.Errorf("failed to register %s field indexer: %w", headscaleRefIndex, err)
@@ -342,9 +365,11 @@ func (r *HeadscaleAutoApproverReconciler) SetupWithManager(mgr ctrl.Manager) err
 		Watches(
 			&headscalev1beta2.Headscale{},
 			handler.EnqueueRequestsFromMapFunc(r.requeueApproversForHeadscale),
-			// Headscale CRs receive frequent status updates from their own
-			// reconciler; only rendering changes matter here, so filter to
-			// spec generation bumps to avoid re-pushing on every status flip.
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
+		Watches(
+			&headscalev1beta2.ClusterHeadscale{},
+			handler.EnqueueRequestsFromMapFunc(r.requeueApproversForHeadscale),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
 		Named("headscaleautoapprover").

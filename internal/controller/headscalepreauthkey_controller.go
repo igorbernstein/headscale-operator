@@ -38,7 +38,7 @@ type HeadscalePreAuthKeyReconciler struct {
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscalepreauthkeys,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscalepreauthkeys/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscalepreauthkeys/finalizers,verbs=update
-// +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscales,verbs=get
+// +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscales;clusterheadscales,verbs=get
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscaleusers,verbs=get
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;create;update;patch;delete
 
@@ -73,7 +73,7 @@ func (r *HeadscalePreAuthKeyReconciler) Reconcile(ctx context.Context, req ctrl.
 	headscale, err := getReferencedHeadscale(ctx, r.Client, preAuthKey.Spec.HeadscaleRef, preAuthKey.Namespace)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Error(err, "Referenced Headscale instance not found", "HeadscaleRef", preAuthKey.Spec.HeadscaleRef.Name)
+			log.Error(err, "Referenced Headscale instance not found", "HeadscaleRef", preAuthKey.Spec.HeadscaleRef)
 			if err := r.updateStatusCondition(ctx, preAuthKey, metav1.Condition{
 				Type:    "Ready",
 				Status:  metav1.ConditionFalse,
@@ -249,16 +249,11 @@ func (r *HeadscalePreAuthKeyReconciler) handleDeletion(
 	log := logf.FromContext(ctx)
 
 	if controllerutil.ContainsFinalizer(preAuthKey, headscalePreAuthKeyFinalizer) {
-		// Get the referenced Headscale instance
-		headscale := &headscalev1beta2.Headscale{}
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      preAuthKey.Spec.HeadscaleRef.Name,
-			Namespace: preAuthKey.Namespace,
-		}, headscale)
+		headscale, err := getReferencedHeadscale(ctx, r.Client, preAuthKey.Spec.HeadscaleRef, preAuthKey.Namespace)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				log.Info("Referenced Headscale instance not found during deletion, removing finalizer",
-					"HeadscaleRef", preAuthKey.Spec.HeadscaleRef.Name)
+					"HeadscaleRef", preAuthKey.Spec.HeadscaleRef)
 				controllerutil.RemoveFinalizer(preAuthKey, headscalePreAuthKeyFinalizer)
 				if err := r.Update(ctx, preAuthKey); err != nil {
 					return ctrl.Result{}, err
@@ -358,7 +353,7 @@ func (r *HeadscalePreAuthKeyReconciler) ensureHeadscaleUserOwnerReference(
 // createPreAuthKey creates a preauth key in the Headscale instance and stores it in a secret
 func (r *HeadscalePreAuthKeyReconciler) createPreAuthKey(
 	ctx context.Context,
-	headscale *headscalev1beta2.Headscale,
+	headscale headscalev1beta2.HeadscaleObject,
 	userID uint64,
 	preAuthKey *headscalev1beta2.HeadscalePreAuthKey,
 ) error {
@@ -466,7 +461,7 @@ func (r *HeadscalePreAuthKeyReconciler) createPreAuthKey(
 // deletePreAuthKey deletes a preauth key in the Headscale instance
 func (r *HeadscalePreAuthKeyReconciler) deletePreAuthKey(
 	ctx context.Context,
-	headscale *headscalev1beta2.Headscale,
+	headscale headscalev1beta2.HeadscaleObject,
 	id uint64,
 ) error {
 	log := logf.FromContext(ctx)

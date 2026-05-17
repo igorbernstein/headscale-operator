@@ -170,3 +170,25 @@ func findCondition(conds []metav1.Condition, t string) *metav1.Condition {
 	}
 	return nil
 }
+
+var _ = Describe("headscaleRefIndexKey", func() {
+	It("uses the 'ClusterHeadscale/' prefix for a ClusterHeadscale", func() {
+		ch := &headscalev1beta2.ClusterHeadscale{}
+		ch.Name = "my-cluster-hs"
+		Expect(headscaleRefIndexKey(ch)).To(Equal("ClusterHeadscale/my-cluster-hs"))
+	})
+
+	It("uses the 'Headscale/' prefix for a namespaced Headscale", func() {
+		h := &headscalev1beta2.Headscale{}
+		h.Name = "my-hs"
+		Expect(headscaleRefIndexKey(h)).To(Equal("Headscale/my-hs"))
+	})
+
+	It("produces distinct keys for same-named Headscale and ClusterHeadscale", func() {
+		h := &headscalev1beta2.Headscale{}
+		h.Name = "shared-name"
+		ch := &headscalev1beta2.ClusterHeadscale{}
+		ch.Name = "shared-name"
+		Expect(headscaleRefIndexKey(h)).NotTo(Equal(headscaleRefIndexKey(ch)))
+	})
+})

@@ -1,0 +1,28 @@
+apiVersion: headscale.infrado.cloud/v1beta2
+kind: ClusterHeadscale
+metadata:
+  labels:
+    app.kubernetes.io/name: headscale-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: clusterheadscale-sample
+spec:
+  targetNamespace: headscale-system
+  version: "v0.28.0"
+  replicas: 1
+  config:
+    server_url: http://vpn.headscale.local
+    grpc_allow_insecure: true
+    derp:
+      server:
+        enabled: false    
+    disable_check_updates: false
+    database:
+      type: sqlite
+    dns:
+      magic_dns: false
+  # API Key management configuration
+  api_key:
+    auto_manage: true
+    manager_image: apikey-manager
+    expiration: "2160h"      # 90 days (90 * 24h)
+    rotation_buffer: "240h"   # 10 days (10 * 24h)

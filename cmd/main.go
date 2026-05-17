@@ -162,11 +162,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.HeadscaleReconciler{
+	reconciler := &controller.HeadscaleReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "headscale")
+		os.Exit(1)
+	}
+	if err := reconciler.SetupWithClusterHeadscale(mgr); err != nil {
+		setupLog.Error(err, "Failed to create controller", "controller", "clusterheadscale")
 		os.Exit(1)
 	}
 	if err := (&controller.HeadscaleUserReconciler{

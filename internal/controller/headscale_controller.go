@@ -27,9 +27,14 @@ import (
 )
 
 // HeadscaleReconciler reconciles a Headscale object
+
 type HeadscaleReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+}
+
+func (r *HeadscaleReconciler) getNamespace(h headscalev1beta2.HeadscaleObject) string {
+	return h.GetTargetNamespace()
 }
 
 const (
@@ -39,22 +44,25 @@ const (
 // Child resource names are derived from the Headscale CR's metadata.name so
 // that multiple Headscale instances can coexist in the same namespace. The
 // StatefulSet, Service, ServiceAccount, Role, and RoleBinding all share
-// h.Name directly; only these suffixed names need a helper.
-func configMapNameFor(h *headscalev1beta2.Headscale) string      { return h.Name + "-config" }
-func metricsServiceNameFor(h *headscalev1beta2.Headscale) string { return h.Name + "-metrics" }
+// h.GetName() directly; only these suffixed names need a helper.
+func configMapNameFor(h headscalev1beta2.HeadscaleObject) string      { return h.GetName() + "-config" }
+func metricsServiceNameFor(h headscalev1beta2.HeadscaleObject) string { return h.GetName() + "-metrics" }
 
 // apiKeySecretNameFor returns the configured secret name, falling back to
 // "<name>-api-key" so multiple instances in one namespace don't collide.
-func apiKeySecretNameFor(h *headscalev1beta2.Headscale) string {
-	if h.Spec.APIKey.SecretName != "" {
-		return h.Spec.APIKey.SecretName
+func apiKeySecretNameFor(h headscalev1beta2.HeadscaleObject) string {
+	if h.GetHeadscaleSpec().APIKey.SecretName != "" {
+		return h.GetHeadscaleSpec().APIKey.SecretName
 	}
-	return h.Name + "-api-key"
+	return h.GetName() + "-api-key"
 }
 
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscales,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscales/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscales/finalizers,verbs=update
+// +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=clusterheadscales,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=clusterheadscales/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=clusterheadscales/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -69,16 +77,22 @@ func apiKeySecretNameFor(h *headscalev1beta2.Headscale) string {
 func (r *HeadscaleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	// Fetch the Headscale instance
-	headscale := &headscalev1beta2.Headscale{}
-	err := r.Get(ctx, req.NamespacedName, headscale)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			log.Info("Headscale resource not found. Ignoring since object must be deleted")
-			return ctrl.Result{}, nil
+	// Cluster-scoped resources always have an empty namespace in ctrl.Request.
+	// SetupWithManager registers namespaced Headscale watches; SetupWithClusterHeadscale
+	// registers cluster-scoped ClusterHeadscale watches. Both reuse this Reconcile method.
+	var headscale headscalev1beta2.HeadscaleObject
+	if req.Namespace == "" {
+		clusterHeadscale := &headscalev1beta2.ClusterHeadscale{}
+		if err := r.Get(ctx, req.NamespacedName, clusterHeadscale); err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
-		log.Error(err, "Failed to get Headscale")
-		return ctrl.Result{}, err
+		headscale = clusterHeadscale
+	} else {
+		nsHeadscale := &headscalev1beta2.Headscale{}
+		if err := r.Get(ctx, req.NamespacedName, nsHeadscale); err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+		headscale = nsHeadscale
 	}
 
 	// Handle deletion
@@ -102,7 +116,7 @@ func (r *HeadscaleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Reconcile RBAC resources only if APIKey.AutoManage is true or nil (default true)
-	if headscale.Spec.APIKey.AutoManage == nil || *headscale.Spec.APIKey.AutoManage {
+	if headscale.GetHeadscaleSpec().APIKey.AutoManage == nil || *headscale.GetHeadscaleSpec().APIKey.AutoManage {
 		// Reconcile ServiceAccount
 		if err := r.reconcileServiceAccount(ctx, headscale); err != nil {
 			log.Error(err, "Failed to reconcile ServiceAccount")
@@ -159,12 +173,12 @@ func (r *HeadscaleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // status condition reflecting the result. An empty inline policy is treated as
 // valid so users always get explicit confirmation that the operator inspected
 // their config.
-func validateACLPolicy(headscale *headscalev1beta2.Headscale) metav1.Condition {
+func validateACLPolicy(headscale headscalev1beta2.HeadscaleObject) metav1.Condition {
 	cond := metav1.Condition{
 		Type:               "PolicyValid",
-		ObservedGeneration: headscale.Generation,
+		ObservedGeneration: headscale.GetGeneration(),
 	}
-	if _, err := parseInlinePolicy(headscale.Spec.ACLPolicy.Inline); err != nil {
+	if _, err := parseInlinePolicy(headscale.GetHeadscaleSpec().ACLPolicy.Inline); err != nil {
 		cond.Status = metav1.ConditionFalse
 		cond.Reason = "InvalidPolicy"
 		cond.Message = err.Error()
@@ -177,29 +191,29 @@ func validateACLPolicy(headscale *headscalev1beta2.Headscale) metav1.Condition {
 }
 
 // handleDeletion handles the deletion of a Headscale instance
-func (r *HeadscaleReconciler) handleDeletion(ctx context.Context, headscale *headscalev1beta2.Headscale) (ctrl.Result, error) {
+func (r *HeadscaleReconciler) handleDeletion(ctx context.Context, headscale headscalev1beta2.HeadscaleObject) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 	if controllerutil.ContainsFinalizer(headscale, headscaleFinalizer) {
-		log.Info("Performing cleanup for Headscale", "Name", headscale.Name)
+		log.Info("Performing cleanup for Headscale", "Name", headscale.GetName())
 
 		// Delete the auto-managed API key secret. The apikey-manager sidecar
 		// creates this secret without an OwnerReference, so it would otherwise
 		// outlive the CR. Only the auto-managed case is cleaned up here; when
 		// AutoManage is disabled the secret is owned by the user.
-		autoManage := headscale.Spec.APIKey.AutoManage == nil || *headscale.Spec.APIKey.AutoManage
+		autoManage := headscale.GetHeadscaleSpec().APIKey.AutoManage == nil || *headscale.GetHeadscaleSpec().APIKey.AutoManage
 		if autoManage {
 			secretName := apiKeySecretNameFor(headscale)
 			secret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      secretName,
-					Namespace: headscale.Namespace,
+					Namespace: r.getNamespace(headscale),
 				},
 			}
 			if err := r.Delete(ctx, secret); err != nil && !errors.IsNotFound(err) {
 				log.Error(err, "Failed to delete API key secret", "Name", secretName)
 				return ctrl.Result{}, err
 			}
-			log.Info("Deleted API key secret", "Namespace", headscale.Namespace, "Name", secretName)
+			log.Info("Deleted API key secret", "Namespace", r.getNamespace(headscale), "Name", secretName)
 		}
 
 		// Remove finalizer
@@ -212,7 +226,7 @@ func (r *HeadscaleReconciler) handleDeletion(ctx context.Context, headscale *hea
 }
 
 // ensureFinalizer ensures the finalizer is present on the Headscale instance
-func (r *HeadscaleReconciler) ensureFinalizer(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
+func (r *HeadscaleReconciler) ensureFinalizer(ctx context.Context, headscale headscalev1beta2.HeadscaleObject) error {
 	if !controllerutil.ContainsFinalizer(headscale, headscaleFinalizer) {
 		controllerutil.AddFinalizer(headscale, headscaleFinalizer)
 		return r.Update(ctx, headscale)
@@ -221,7 +235,7 @@ func (r *HeadscaleReconciler) ensureFinalizer(ctx context.Context, headscale *he
 }
 
 // reconcileConfigMap reconciles the ConfigMap for Headscale
-func (r *HeadscaleReconciler) reconcileConfigMap(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
+func (r *HeadscaleReconciler) reconcileConfigMap(ctx context.Context, headscale headscalev1beta2.HeadscaleObject) error {
 	log := logf.FromContext(ctx)
 
 	configMap, err := r.configMapForHeadscale(headscale)
@@ -251,11 +265,11 @@ func (r *HeadscaleReconciler) reconcileConfigMap(ctx context.Context, headscale 
 }
 
 // reconcileStatefulSet reconciles the StatefulSet for Headscale
-func (r *HeadscaleReconciler) reconcileStatefulSet(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
+func (r *HeadscaleReconciler) reconcileStatefulSet(ctx context.Context, headscale headscalev1beta2.HeadscaleObject) error {
 	log := logf.FromContext(ctx)
 
 	// Compute hash of the config spec directly from the Headscale CR
-	configHash := computeConfigHashFromSpec(&headscale.Spec.Config)
+	configHash := computeConfigHashFromSpec(&headscale.GetHeadscaleSpec().Config)
 
 	statefulSet := r.statefulSetForHeadscale(headscale, configHash)
 	if err := controllerutil.SetControllerReference(headscale, statefulSet, r.Scheme); err != nil {
@@ -285,7 +299,7 @@ func (r *HeadscaleReconciler) reconcileStatefulSet(ctx context.Context, headscal
 }
 
 // reconcileService reconciles the Service for Headscale
-func (r *HeadscaleReconciler) reconcileService(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
+func (r *HeadscaleReconciler) reconcileService(ctx context.Context, headscale headscalev1beta2.HeadscaleObject) error {
 	log := logf.FromContext(ctx)
 
 	service := r.serviceForHeadscale(headscale)
@@ -305,7 +319,7 @@ func (r *HeadscaleReconciler) reconcileService(ctx context.Context, headscale *h
 }
 
 // reconcileMetricsService reconciles the Metrics Service for Headscale
-func (r *HeadscaleReconciler) reconcileMetricsService(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
+func (r *HeadscaleReconciler) reconcileMetricsService(ctx context.Context, headscale headscalev1beta2.HeadscaleObject) error {
 	log := logf.FromContext(ctx)
 
 	metricsService := r.metricsServiceForHeadscale(headscale)
@@ -325,7 +339,7 @@ func (r *HeadscaleReconciler) reconcileMetricsService(ctx context.Context, heads
 }
 
 // reconcileServiceAccount reconciles the ServiceAccount for Headscale pods
-func (r *HeadscaleReconciler) reconcileServiceAccount(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
+func (r *HeadscaleReconciler) reconcileServiceAccount(ctx context.Context, headscale headscalev1beta2.HeadscaleObject) error {
 	log := logf.FromContext(ctx)
 
 	sa := r.serviceAccountForHeadscale(headscale)
@@ -352,7 +366,7 @@ func (r *HeadscaleReconciler) reconcileServiceAccount(ctx context.Context, heads
 }
 
 // reconcileRole reconciles the Role for Headscale pods
-func (r *HeadscaleReconciler) reconcileRole(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
+func (r *HeadscaleReconciler) reconcileRole(ctx context.Context, headscale headscalev1beta2.HeadscaleObject) error {
 	log := logf.FromContext(ctx)
 
 	role := r.roleForHeadscale(headscale)
@@ -379,7 +393,7 @@ func (r *HeadscaleReconciler) reconcileRole(ctx context.Context, headscale *head
 }
 
 // reconcileRoleBinding reconciles the RoleBinding for Headscale pods
-func (r *HeadscaleReconciler) reconcileRoleBinding(ctx context.Context, headscale *headscalev1beta2.Headscale) error {
+func (r *HeadscaleReconciler) reconcileRoleBinding(ctx context.Context, headscale headscalev1beta2.HeadscaleObject) error {
 	log := logf.FromContext(ctx)
 
 	rb := r.roleBindingForHeadscale(headscale)
@@ -411,21 +425,22 @@ func (r *HeadscaleReconciler) reconcileRoleBinding(ctx context.Context, headscal
 // policy here.
 func (r *HeadscaleReconciler) updateStatus(
 	ctx context.Context,
-	headscale *headscalev1beta2.Headscale,
+	headscale headscalev1beta2.HeadscaleObject,
 	policyCond metav1.Condition,
 ) error {
-	patch := client.MergeFrom(headscale.DeepCopy())
+	base := headscale.DeepCopyObject().(headscalev1beta2.HeadscaleObject)
+	patch := client.MergeFrom(base)
 
 	ready := metav1.Condition{
 		Type:               "Ready",
 		Status:             metav1.ConditionTrue,
 		Reason:             "Reconciled",
 		Message:            "Headscale is running",
-		ObservedGeneration: headscale.Generation,
+		ObservedGeneration: headscale.GetGeneration(),
 	}
 
-	changed := meta.SetStatusCondition(&headscale.Status.Conditions, ready)
-	changed = meta.SetStatusCondition(&headscale.Status.Conditions, policyCond) || changed
+	changed := meta.SetStatusCondition(&headscale.GetHeadscaleStatus().Conditions, ready)
+	changed = meta.SetStatusCondition(&headscale.GetHeadscaleStatus().Conditions, policyCond) || changed
 	if !changed {
 		return nil
 	}
@@ -434,8 +449,8 @@ func (r *HeadscaleReconciler) updateStatus(
 }
 
 // configMapForHeadscale returns a ConfigMap object for Headscale configuration
-func (r *HeadscaleReconciler) configMapForHeadscale(h *headscalev1beta2.Headscale) (*corev1.ConfigMap, error) {
-	configData, err := yaml.Marshal(h.Spec.Config)
+func (r *HeadscaleReconciler) configMapForHeadscale(h headscalev1beta2.HeadscaleObject) (*corev1.ConfigMap, error) {
+	configData, err := yaml.Marshal(h.GetHeadscaleSpec().Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal headscale config: %w", err)
 	}
@@ -443,8 +458,8 @@ func (r *HeadscaleReconciler) configMapForHeadscale(h *headscalev1beta2.Headscal
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapNameFor(h),
-			Namespace: h.Namespace,
-			Labels:    labelsForHeadscale(h.Name),
+			Namespace: r.getNamespace(h),
+			Labels:    labelsForHeadscale(h.GetName()),
 		},
 		Data: map[string]string{
 			"config.yaml": string(configData),
@@ -468,22 +483,22 @@ func computeConfigHashFromSpec(config *headscalev1beta2.HeadscaleConfig) string 
 }
 
 // statefulSetForHeadscale returns a StatefulSet object for Headscale
-func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headscale, configHash string) *appsv1.StatefulSet {
-	labels := labelsForHeadscale(h.Name)
-	replicas := h.Spec.Replicas
+func (r *HeadscaleReconciler) statefulSetForHeadscale(h headscalev1beta2.HeadscaleObject, configHash string) *appsv1.StatefulSet {
+	labels := labelsForHeadscale(h.GetName())
+	replicas := h.GetHeadscaleSpec().Replicas
 
 	// Determine the image to use
-	image := fmt.Sprintf("%s:%s", h.Spec.Image, h.Spec.Version)
+	image := fmt.Sprintf("%s:%s", h.GetHeadscaleSpec().Image, h.GetHeadscaleSpec().Version)
 
 	// Extract ports from configuration
-	httpPort := extractPort(h.Spec.Config.ListenAddr, 8080)
-	metricsPort := extractPort(h.Spec.Config.MetricsListenAddr, 9090)
-	grpcPort := extractPort(h.Spec.Config.GRPCListenAddr, 50443)
+	httpPort := extractPort(h.GetHeadscaleSpec().Config.ListenAddr, 8080)
+	metricsPort := extractPort(h.GetHeadscaleSpec().Config.MetricsListenAddr, 9090)
+	grpcPort := extractPort(h.GetHeadscaleSpec().Config.GRPCListenAddr, 50443)
 
 	// Get PVC configuration with defaults
 	pvcSize := resource.NewQuantity(128*1024*1024, resource.BinarySI) // 128Mi default
-	if h.Spec.PersistentVolumeClaim.Size != nil {
-		pvcSize = h.Spec.PersistentVolumeClaim.Size
+	if h.GetHeadscaleSpec().PersistentVolumeClaim.Size != nil {
+		pvcSize = h.GetHeadscaleSpec().PersistentVolumeClaim.Size
 	}
 
 	// Build PVC spec
@@ -496,7 +511,7 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headsc
 				corev1.ResourceStorage: *pvcSize,
 			},
 		},
-		StorageClassName: h.Spec.PersistentVolumeClaim.StorageClassName,
+		StorageClassName: h.GetHeadscaleSpec().PersistentVolumeClaim.StorageClassName,
 	}
 
 	// Build container list starting with Headscale
@@ -537,7 +552,7 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headsc
 					MountPath: "/var/lib/headscale",
 				},
 			},
-			Env: h.Spec.ExtraEnv,
+			Env: h.GetHeadscaleSpec().ExtraEnv,
 			LivenessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
@@ -586,8 +601,8 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headsc
 
 	// Add API key manager sidecar if auto_manage is enabled
 	autoManage := true // default value
-	if h.Spec.APIKey.AutoManage != nil {
-		autoManage = *h.Spec.APIKey.AutoManage
+	if h.GetHeadscaleSpec().APIKey.AutoManage != nil {
+		autoManage = *h.GetHeadscaleSpec().APIKey.AutoManage
 	}
 
 	if autoManage {
@@ -607,8 +622,8 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headsc
 
 		// Determine the API key manager image to use
 		managerImage := "ghcr.io/infradohq/headscale-operator/apikey-manager:latest"
-		if h.Spec.APIKey.ManagerImage != "" {
-			managerImage = h.Spec.APIKey.ManagerImage
+		if h.GetHeadscaleSpec().APIKey.ManagerImage != "" {
+			managerImage = h.GetHeadscaleSpec().APIKey.ManagerImage
 		}
 
 		// Add API key manager sidecar
@@ -617,10 +632,10 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headsc
 			Image:           managerImage,
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			Args: []string{
-				"--socket-path=" + h.Spec.Config.UnixSocket,
+				"--socket-path=" + h.GetHeadscaleSpec().Config.UnixSocket,
 				"--secret-name=" + apiKeySecretNameFor(h),
-				"--expiration=" + h.Spec.APIKey.Expiration,
-				"--rotation-buffer=" + h.Spec.APIKey.RotationBuffer,
+				"--expiration=" + h.GetHeadscaleSpec().APIKey.Expiration,
+				"--rotation-buffer=" + h.GetHeadscaleSpec().APIKey.RotationBuffer,
 			},
 			Env: []corev1.EnvVar{
 				{
@@ -651,17 +666,17 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headsc
 	}
 
 	// Append extra volumes and volume mounts from spec
-	if len(h.Spec.ExtraVolumes) > 0 {
-		volumes = append(volumes, h.Spec.ExtraVolumes...)
+	if len(h.GetHeadscaleSpec().ExtraVolumes) > 0 {
+		volumes = append(volumes, h.GetHeadscaleSpec().ExtraVolumes...)
 	}
-	if len(h.Spec.ExtraVolumeMounts) > 0 {
-		containers[0].VolumeMounts = append(containers[0].VolumeMounts, h.Spec.ExtraVolumeMounts...)
+	if len(h.GetHeadscaleSpec().ExtraVolumeMounts) > 0 {
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, h.GetHeadscaleSpec().ExtraVolumeMounts...)
 	}
 
 	return &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      h.Name,
-			Namespace: h.Namespace,
+			Name:      h.GetName(),
+			Namespace: r.getNamespace(h),
 			Labels:    labels,
 		},
 		Spec: appsv1.StatefulSetSpec{
@@ -669,7 +684,7 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headsc
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
-			ServiceName: h.Name,
+			ServiceName: h.GetName(),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
@@ -678,7 +693,7 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headsc
 					},
 				},
 				Spec: corev1.PodSpec{
-					ServiceAccountName: h.Name,
+					ServiceAccountName: h.GetName(),
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsUser:    ptr.To(int64(65532)),
 						RunAsGroup:   ptr.To(int64(65532)),
@@ -690,7 +705,7 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headsc
 					},
 					Containers:       containers,
 					Volumes:          volumes,
-					ImagePullSecrets: buildImagePullSecrets(h.Spec.ImagePullSecrets),
+					ImagePullSecrets: buildImagePullSecrets(h.GetHeadscaleSpec().ImagePullSecrets),
 				},
 			},
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
@@ -706,17 +721,17 @@ func (r *HeadscaleReconciler) statefulSetForHeadscale(h *headscalev1beta2.Headsc
 }
 
 // serviceForHeadscale returns a Service object for Headscale
-func (r *HeadscaleReconciler) serviceForHeadscale(h *headscalev1beta2.Headscale) *corev1.Service {
-	labels := labelsForHeadscale(h.Name)
+func (r *HeadscaleReconciler) serviceForHeadscale(h headscalev1beta2.HeadscaleObject) *corev1.Service {
+	labels := labelsForHeadscale(h.GetName())
 
 	// Extract ports from configuration
-	httpPort := extractPort(h.Spec.Config.ListenAddr, 8080)
-	grpcPort := extractPort(h.Spec.Config.GRPCListenAddr, 50443)
+	httpPort := extractPort(h.GetHeadscaleSpec().Config.ListenAddr, 8080)
+	grpcPort := extractPort(h.GetHeadscaleSpec().Config.GRPCListenAddr, 50443)
 
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      h.Name,
-			Namespace: h.Namespace,
+			Name:      h.GetName(),
+			Namespace: r.getNamespace(h),
 			Labels:    labels,
 		},
 		Spec: corev1.ServiceSpec{
@@ -741,16 +756,16 @@ func (r *HeadscaleReconciler) serviceForHeadscale(h *headscalev1beta2.Headscale)
 }
 
 // metricsServiceForHeadscale returns a Service object for Headscale metrics
-func (r *HeadscaleReconciler) metricsServiceForHeadscale(h *headscalev1beta2.Headscale) *corev1.Service {
-	labels := labelsForHeadscale(h.Name)
+func (r *HeadscaleReconciler) metricsServiceForHeadscale(h headscalev1beta2.HeadscaleObject) *corev1.Service {
+	labels := labelsForHeadscale(h.GetName())
 
 	// Extract metrics port from configuration
-	metricsPort := extractPort(h.Spec.Config.MetricsListenAddr, 9090)
+	metricsPort := extractPort(h.GetHeadscaleSpec().Config.MetricsListenAddr, 9090)
 
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      metricsServiceNameFor(h),
-			Namespace: h.Namespace,
+			Namespace: r.getNamespace(h),
 			Labels:    labels,
 		},
 		Spec: corev1.ServiceSpec{
@@ -769,23 +784,23 @@ func (r *HeadscaleReconciler) metricsServiceForHeadscale(h *headscalev1beta2.Hea
 }
 
 // serviceAccountForHeadscale returns a ServiceAccount object for Headscale pods
-func (r *HeadscaleReconciler) serviceAccountForHeadscale(h *headscalev1beta2.Headscale) *corev1.ServiceAccount {
+func (r *HeadscaleReconciler) serviceAccountForHeadscale(h headscalev1beta2.HeadscaleObject) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      h.Name,
-			Namespace: h.Namespace,
-			Labels:    labelsForHeadscale(h.Name),
+			Name:      h.GetName(),
+			Namespace: r.getNamespace(h),
+			Labels:    labelsForHeadscale(h.GetName()),
 		},
 	}
 }
 
 // roleForHeadscale returns a Role object for Headscale pods with permissions to manage Secrets
-func (r *HeadscaleReconciler) roleForHeadscale(h *headscalev1beta2.Headscale) *rbacv1.Role {
+func (r *HeadscaleReconciler) roleForHeadscale(h headscalev1beta2.HeadscaleObject) *rbacv1.Role {
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      h.Name,
-			Namespace: h.Namespace,
-			Labels:    labelsForHeadscale(h.Name),
+			Name:      h.GetName(),
+			Namespace: r.getNamespace(h),
+			Labels:    labelsForHeadscale(h.GetName()),
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -804,23 +819,23 @@ func (r *HeadscaleReconciler) roleForHeadscale(h *headscalev1beta2.Headscale) *r
 }
 
 // roleBindingForHeadscale returns a RoleBinding object for Headscale pods
-func (r *HeadscaleReconciler) roleBindingForHeadscale(h *headscalev1beta2.Headscale) *rbacv1.RoleBinding {
+func (r *HeadscaleReconciler) roleBindingForHeadscale(h headscalev1beta2.HeadscaleObject) *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      h.Name,
-			Namespace: h.Namespace,
-			Labels:    labelsForHeadscale(h.Name),
+			Name:      h.GetName(),
+			Namespace: r.getNamespace(h),
+			Labels:    labelsForHeadscale(h.GetName()),
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",
-			Name:     h.Name,
+			Name:     h.GetName(),
 		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      h.Name,
-				Namespace: h.Namespace,
+				Name:      h.GetName(),
+				Namespace: r.getNamespace(h),
 			},
 		},
 	}
@@ -861,5 +876,19 @@ func (r *HeadscaleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
 		Named("headscale").
+		Complete(r)
+}
+
+// SetupWithClusterHeadscale sets up the controller for ClusterHeadscale.
+func (r *HeadscaleReconciler) SetupWithClusterHeadscale(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&headscalev1beta2.ClusterHeadscale{}).
+		Owns(&appsv1.StatefulSet{}).
+		Owns(&corev1.Service{}).
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
+		Named("clusterheadscale").
 		Complete(r)
 }

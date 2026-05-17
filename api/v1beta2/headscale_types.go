@@ -806,6 +806,15 @@ type Headscale struct {
 	Status HeadscaleStatus `json:"status,omitzero"`
 }
 
+// HeadscaleKind identifies which Headscale resource kind a HeadscaleRef targets.
+// +kubebuilder:validation:Enum=Headscale;ClusterHeadscale
+type HeadscaleKind string
+
+const (
+	HeadscaleKindNamespaced HeadscaleKind = "Headscale"
+	HeadscaleKindCluster    HeadscaleKind = "ClusterHeadscale"
+)
+
 // HeadscaleRef defines a reference to a Headscale instance.
 type HeadscaleRef struct {
 	// Name is the name of the referenced Headscale instance.
@@ -814,16 +823,17 @@ type HeadscaleRef struct {
 	Name string `json:"name"`
 
 	// Kind is the kind of the referenced Headscale instance.
+	// Defaults to "Headscale" (namespace-scoped). Set to "ClusterHeadscale"
+	// to reference a cluster-scoped instance.
 	// +kubebuilder:default="Headscale"
-	// +kubebuilder:validation:Enum=Headscale
 	// +optional
-	Kind string `json:"kind,omitempty"`
+	Kind HeadscaleKind `json:"kind,omitempty"`
 }
 
 func (r HeadscaleRef) String() string {
 	kind := r.Kind
 	if kind == "" {
-		kind = "Headscale"
+		kind = HeadscaleKindNamespaced
 	}
 	return fmt.Sprintf("%s %q", kind, r.Name)
 }

@@ -47,4 +47,13 @@ resources:
   kind: HeadscaleAutoApprover
   path: github.com/infradohq/headscale-operator/api/v1beta2
   version: v1beta2
+- api:
+    crdVersion: v1
+    namespaced: false
+  controller: true
+  domain: infrado.cloud
+  group: headscale
+  kind: ClusterHeadscale
+  path: github.com/infradohq/headscale-operator/api/v1beta2
+  version: v1beta2
 version: "3"

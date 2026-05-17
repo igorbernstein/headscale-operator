@@ -854,6 +854,70 @@ var _ = Describe("HeadscalePreAuthKey Controller", func() {
 			By("Cleaning up the test resource")
 			Expect(k8sClient.Delete(ctx, preAuthKey)).To(Succeed())
 		})
+
+		It("should handle deletion when the HeadscaleRef targets a ClusterHeadscale", func() {
+			const clusterHSName = "deletion-cluster-hs"
+
+			By("Creating a ClusterHeadscale instance")
+			clusterHS := &headscalev1beta2.ClusterHeadscale{
+				ObjectMeta: metav1.ObjectMeta{Name: clusterHSName},
+				Spec: headscalev1beta2.ClusterHeadscaleSpec{
+					TargetNamespace: namespace,
+					HeadscaleSpec: headscalev1beta2.HeadscaleSpec{
+						Version:  "v0.28.0",
+						Replicas: 1,
+						Config: headscalev1beta2.HeadscaleConfig{
+							ServerURL:  "https://cluster.example.com",
+							ListenAddr: "0.0.0.0:8080",
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, clusterHS)).To(Succeed())
+			DeferCleanup(func() { _ = k8sClient.Delete(ctx, clusterHS) })
+
+			By("Creating a HeadscalePreAuthKey referencing the ClusterHeadscale")
+			keyName := resourceName + "-cluster-deletion"
+			preAuthKey := &headscalev1beta2.HeadscalePreAuthKey{
+				ObjectMeta: metav1.ObjectMeta{Name: keyName, Namespace: namespace},
+				Spec: headscalev1beta2.HeadscalePreAuthKeySpec{
+					HeadscaleRef: headscalev1beta2.HeadscaleRef{
+						Name: clusterHSName,
+						Kind: headscalev1beta2.HeadscaleKindCluster,
+					},
+					Tags: []string{"tag:test"},
+				},
+			}
+			Expect(k8sClient.Create(ctx, preAuthKey)).To(Succeed())
+
+			clusterKeyNSN := types.NamespacedName{Name: keyName, Namespace: namespace}
+			controllerReconciler := &HeadscalePreAuthKeyReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			By("Reconciling to add the finalizer")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: clusterKeyNSN})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying finalizer was added")
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, clusterKeyNSN, preAuthKey)
+				return err == nil && slices.Contains(preAuthKey.Finalizers, headscalePreAuthKeyFinalizer)
+			}, timeout, interval).Should(BeTrue())
+
+			By("Deleting the HeadscalePreAuthKey")
+			Expect(k8sClient.Delete(ctx, preAuthKey)).To(Succeed())
+
+			By("Reconciling the deletion — handleDeletion must resolve ClusterHeadscale ref, not hardcode Headscale")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: clusterKeyNSN})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying the resource is deleted (finalizer was removed)")
+			Eventually(func() bool {
+				return errors.IsNotFound(k8sClient.Get(ctx, clusterKeyNSN, preAuthKey))
+			}, timeout, interval).Should(BeTrue())
+		})
 	})
 
 	Context("Helper function tests", func() {

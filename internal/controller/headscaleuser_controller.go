@@ -33,7 +33,7 @@ type HeadscaleUserReconciler struct {
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscaleusers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscaleusers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscaleusers/finalizers,verbs=update
-// +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscales,verbs=get
+// +kubebuilder:rbac:groups=headscale.infrado.cloud,resources=headscales;clusterheadscales,verbs=get
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -67,7 +67,7 @@ func (r *HeadscaleUserReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	headscale, err := getReferencedHeadscale(ctx, r.Client, headscaleUser.Spec.HeadscaleRef, headscaleUser.Namespace)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Error(err, "Referenced Headscale instance not found", "HeadscaleRef", headscaleUser.Spec.HeadscaleRef.Name)
+			log.Error(err, "Referenced Headscale instance not found", "HeadscaleRef", headscaleUser.Spec.HeadscaleRef)
 			if err := r.updateStatusCondition(ctx, headscaleUser, metav1.Condition{
 				Type:    "Ready",
 				Status:  metav1.ConditionFalse,
@@ -160,7 +160,7 @@ func (r *HeadscaleUserReconciler) handleDeletion(ctx context.Context, headscaleU
 		headscale, err := getReferencedHeadscale(ctx, r.Client, headscaleUser.Spec.HeadscaleRef, headscaleUser.Namespace)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				log.Info("Referenced Headscale instance not found during deletion, removing finalizer", "HeadscaleRef", headscaleUser.Spec.HeadscaleRef.Name)
+				log.Info("Referenced Headscale not found, skipping external user deletion", "HeadscaleRef", headscaleUser.Spec.HeadscaleRef)
 				controllerutil.RemoveFinalizer(headscaleUser, headscaleUserFinalizer)
 				if err := r.Update(ctx, headscaleUser); err != nil {
 					return ctrl.Result{}, err
@@ -201,7 +201,7 @@ func (r *HeadscaleUserReconciler) ensureFinalizer(ctx context.Context, headscale
 }
 
 // createUser creates a user in the Headscale instance
-func (r *HeadscaleUserReconciler) createUser(ctx context.Context, headscale *headscalev1beta2.Headscale, headscaleUser *headscalev1beta2.HeadscaleUser) error {
+func (r *HeadscaleUserReconciler) createUser(ctx context.Context, headscale headscalev1beta2.HeadscaleObject, headscaleUser *headscalev1beta2.HeadscaleUser) error {
 	log := logf.FromContext(ctx)
 
 	// Get the API key from the secret
@@ -246,7 +246,7 @@ func (r *HeadscaleUserReconciler) createUser(ctx context.Context, headscale *hea
 }
 
 // deleteUser deletes a user from the Headscale instance
-func (r *HeadscaleUserReconciler) deleteUser(ctx context.Context, headscale *headscalev1beta2.Headscale, headscaleUser *headscalev1beta2.HeadscaleUser) error {
+func (r *HeadscaleUserReconciler) deleteUser(ctx context.Context, headscale headscalev1beta2.HeadscaleObject, headscaleUser *headscalev1beta2.HeadscaleUser) error {
 	log := logf.FromContext(ctx)
 
 	// Parse UserID
@@ -285,7 +285,7 @@ func (r *HeadscaleUserReconciler) deleteUser(ctx context.Context, headscale *hea
 }
 
 // verifyUser verifies that the user still exists in Headscale
-func (r *HeadscaleUserReconciler) verifyUser(ctx context.Context, headscale *headscalev1beta2.Headscale, headscaleUser *headscalev1beta2.HeadscaleUser) error {
+func (r *HeadscaleUserReconciler) verifyUser(ctx context.Context, headscale headscalev1beta2.HeadscaleObject, headscaleUser *headscalev1beta2.HeadscaleUser) error {
 	log := logf.FromContext(ctx)
 
 	// Get the API key from the secret

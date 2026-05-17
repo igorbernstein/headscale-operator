@@ -4,4 +4,5 @@ resources:
 - headscale_v1beta2_headscaleuser.yaml
 - headscale_v1beta2_headscalepreauthkey.yaml
 - headscale_v1beta2_headscaleautoapprover.yaml
+- headscale_v1beta2_clusterheadscale.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

@@ -29,14 +29,19 @@ import (
 	headscalev1beta2 "github.com/infradohq/headscale-operator/api/v1beta2"
 )
 
-// getReferencedHeadscale resolves a HeadscaleRef to a Headscale instance.
-// The defaultNamespace argument is used as the lookup namespace for the resource.
-func getReferencedHeadscale(ctx context.Context, k8sClient client.Client, ref headscalev1beta2.HeadscaleRef, defaultNamespace string) (*headscalev1beta2.Headscale, error) {
-	h := &headscalev1beta2.Headscale{}
-	if err := k8sClient.Get(ctx, types.NamespacedName{Name: ref.Name, Namespace: defaultNamespace}, h); err != nil {
-		return nil, err
+// getReferencedHeadscale resolves a HeadscaleRef to a concrete headscalev1beta2.HeadscaleObject.
+// namespace is used as the lookup namespace for namespaced Headscale references.
+func getReferencedHeadscale(ctx context.Context, k8sClient client.Client, ref headscalev1beta2.HeadscaleRef, namespace string) (headscalev1beta2.HeadscaleObject, error) {
+	switch ref.Kind {
+	case headscalev1beta2.HeadscaleKindCluster:
+		ch := &headscalev1beta2.ClusterHeadscale{}
+		return ch, k8sClient.Get(ctx, types.NamespacedName{Name: ref.Name}, ch)
+	case headscalev1beta2.HeadscaleKindNamespaced, "":
+		h := &headscalev1beta2.Headscale{}
+		return h, k8sClient.Get(ctx, types.NamespacedName{Name: ref.Name, Namespace: namespace}, h)
+	default:
+		return nil, fmt.Errorf("unsupported HeadscaleRef kind %q", ref.Kind)
 	}
-	return h, nil
 }
 
 // extractPort extracts the port number from an address string like "127.0.0.1:8080" or ":8080"
@@ -62,14 +67,14 @@ func extractPort(addr string, defaultPort int32) int32 {
 
 // getAPIKey retrieves the API key from the secret created by the apikey-manager sidecar.
 // This function is shared across all controllers that need to interact with the Headscale API.
-func getAPIKey(ctx context.Context, k8sClient client.Client, headscale *headscalev1beta2.Headscale) (string, error) {
+func getAPIKey(ctx context.Context, k8sClient client.Client, headscale headscalev1beta2.HeadscaleObject) (string, error) {
 	secretName := apiKeySecretNameFor(headscale)
 
 	// Get the secret
 	secret := &corev1.Secret{}
 	err := k8sClient.Get(ctx, types.NamespacedName{
 		Name:      secretName,
-		Namespace: headscale.Namespace,
+		Namespace: headscale.GetTargetNamespace(),
 	}, secret)
 	if err != nil {
 		return "", fmt.Errorf("failed to get API key secret: %w", err)
@@ -87,10 +92,10 @@ func getAPIKey(ctx context.Context, k8sClient client.Client, headscale *headscal
 // getGRPCServiceAddress returns the gRPC service address for the Headscale instance.
 // This function is shared across all controllers that need to connect to the Headscale gRPC service.
 // It returns the service address in the format: <service-name>.<namespace>.svc:<port>
-func getGRPCServiceAddress(headscale *headscalev1beta2.Headscale) string {
+func getGRPCServiceAddress(headscale headscalev1beta2.HeadscaleObject) string {
 	// Extract the gRPC port from the configuration
-	grpcPort := extractPort(headscale.Spec.Config.GRPCListenAddr, 50443)
+	grpcPort := extractPort(headscale.GetHeadscaleSpec().Config.GRPCListenAddr, 50443)
 
 	// Return the service address and let Kubernetes DNS search domain handle the rest
-	return fmt.Sprintf("%s.%s.svc:%d", headscale.Name, headscale.Namespace, grpcPort)
+	return fmt.Sprintf("%s.%s.svc:%d", headscale.GetName(), headscale.GetTargetNamespace(), grpcPort)
 }
